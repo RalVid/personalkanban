@@ -777,9 +777,13 @@
         if (window.firebaseAuth) {
           const cloudData = await window.firebaseAuth.loadFromFirestore(user.uid);
           if (cloudData) {
-            // Merge with local data (cloud takes precedence if modified later)
+            // Cloud data exists - merge with local data
             const localModified = parseInt(localStorage.getItem('lastModified') || '0');
-            if (!localModified || cloudData.lastModified > localModified) {
+            const hasLocalData = board.todo.length > 0 || board.doing.length > 0 || board.done.length > 0;
+            
+            if (!hasLocalData || !localModified || cloudData.lastModified > localModified) {
+              // Cloud is newer or local is empty - use cloud data
+              console.log('Using cloud data (cloud is newer or local is empty)');
               isSyncing = true;
               board = cloudData.board;
               const newTitle = cloudData.title;
@@ -790,8 +794,31 @@
               render();
               isSyncing = false;
             } else {
-              // Local is newer, sync to cloud
-              await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
+              // Local has data and is newer - but this might be a new device
+              // To avoid data loss, we should NOT overwrite cloud automatically
+              console.warn('Local data exists and is newer - manual merge may be needed');
+              const shouldOverwrite = confirm(
+                'Du har gjort ändringar lokalt, men det finns också data i molnet.\n\n' +
+                'Vill du ERSÄTTA molndata med dina lokala ändringar?\n\n' +
+                'Klicka OK för att ladda upp lokala ändringar.\n' +
+                'Klicka Avbryt för att ladda ner molndata (lokala ändringar försvinner).'
+              );
+              
+              if (shouldOverwrite) {
+                console.log('User chose to upload local data');
+                await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
+              } else {
+                console.log('User chose to download cloud data');
+                isSyncing = true;
+                board = cloudData.board;
+                const newTitle = cloudData.title;
+                $('#boardTitle').textContent = newTitle;
+                document.title = newTitle;
+                saveBoardTitle(newTitle);
+                save(board);
+                render();
+                isSyncing = false;
+              }
             }
           } else {
             // No cloud data exists yet
