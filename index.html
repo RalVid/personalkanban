@@ -699,6 +699,15 @@
       if (confirm(`Töm kolumnen "${col}"?`)) { board[col] = []; save(board); render(); }
     }));
 
+    // Sign out button
+    $('#signOutBtn')?.addEventListener('click', () => {
+      if (confirm('Vill du logga ut? Dina uppgifter kommer fortfarande att finnas kvar i molnet.')) {
+        if (window.firebaseAuth) {
+          window.firebaseAuth.signOut();
+        }
+      }
+    });
+
     // Editable board title
     const titleEl = $('#boardTitle');
     titleEl.textContent = loadBoardTitle();
