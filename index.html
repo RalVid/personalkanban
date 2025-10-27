@@ -194,6 +194,71 @@
       opacity: 0.9;
     }
 
+    /* Add task dialog */
+    .dialog-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.7);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 2000;
+      animation: fadeIn 0.2s ease-out;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    .dialog {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 24px;
+      width: 90%;
+      max-width: 500px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+      animation: slideDown 0.3s ease-out;
+    }
+    @keyframes slideDown {
+      from { transform: translateY(-50px); opacity: 0; }
+      to { transform: translateY(0); opacity: 1; }
+    }
+    .dialog h2 {
+      margin: 0 0 20px 0;
+      font-size: 1.3rem;
+    }
+    .dialog-form {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .dialog-form input,
+    .dialog-form textarea {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: inherit;
+      font-size: 1rem;
+    }
+    .dialog-form textarea {
+      resize: vertical;
+      min-height: 80px;
+    }
+    .dialog-buttons {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+    .dialog-buttons button {
+      flex: 1;
+    }
+
     /* Mobile responsive */
     @media (max-width: 768px) {
       header {
@@ -266,12 +331,9 @@
         <span>🔐 Logga in</span>
       </button>
     </div>
-    <form class="controls" id="addForm" autocomplete="off">
-      <input id="taskInput" type="text" placeholder="Rubrik (obligatorisk)" aria-label="Ny uppgift" required />
-      <button type="submit" title="Lägg till i 'Att göra'">Lägg till</button>
-      <button id="exportBtn" type="button" class="secondary" title="Exportera som JSON">Exportera</button>
-      <button id="importBtn" type="button" class="ghost" title="Importera från JSON">Importera</button>
-    </form>
+    <div class="controls">
+      <button id="addTaskBtn" type="button" title="Lägg till ny uppgift">➕ Lägg till</button>
+    </div>
   </header>
 
   <main>
@@ -725,11 +787,69 @@
       });
     });
 
-    // Form
-    $('#addForm').addEventListener('submit', e => {
-      e.preventDefault(); const v = $('#taskInput').value.trim(); if(!v) return;
-      addTask(v, 'todo'); e.target.reset(); $('#taskInput').focus();
+    // Add task button - show dialog
+    $('#addTaskBtn').addEventListener('click', () => {
+      showAddTaskDialog();
     });
+
+    function showAddTaskDialog() {
+      // Create overlay
+      const overlay = document.createElement('div');
+      overlay.className = 'dialog-overlay';
+      
+      // Create dialog
+      const dialog = document.createElement('div');
+      dialog.className = 'dialog';
+      dialog.innerHTML = `
+        <h2>Lägg till ny uppgift</h2>
+        <form class="dialog-form" id="dialogForm">
+          <input type="text" id="dialogHeadline" placeholder="Rubrik (obligatorisk)" required autofocus />
+          <textarea id="dialogText" placeholder="Beskrivning (valfri)"></textarea>
+          <div class="dialog-buttons">
+            <button type="button" class="ghost" id="dialogCancel">Avbryt</button>
+            <button type="submit">Lägg till</button>
+          </div>
+        </form>
+      `;
+      
+      overlay.appendChild(dialog);
+      document.body.appendChild(overlay);
+      
+      // Focus headline input
+      setTimeout(() => $('#dialogHeadline').focus(), 100);
+      
+      // Cancel button
+      $('#dialogCancel').addEventListener('click', () => {
+        overlay.remove();
+      });
+      
+      // Click outside to close
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          overlay.remove();
+        }
+      });
+      
+      // Submit form
+      $('#dialogForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const headline = $('#dialogHeadline').value.trim();
+        const text = $('#dialogText').value.trim();
+        if (!headline) return;
+        
+        addTask(headline, text, 'todo');
+        overlay.remove();
+      });
+      
+      // Escape key to close
+      const escapeHandler = (e) => {
+        if (e.key === 'Escape') {
+          overlay.remove();
+          document.removeEventListener('keydown', escapeHandler);
+        }
+      };
+      document.addEventListener('keydown', escapeHandler);
+    }
 
     // Mobile menu toggle
     const mobileMenuBtn = $('#mobileMenuBtn');
