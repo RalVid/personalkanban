@@ -275,11 +275,21 @@
       }
       header > div:first-child {
         display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
+        gap: 8px;
+      }
+      header > div:first-child > div:first-child {
+        display: flex;
         justify-content: space-between;
         align-items: center;
         width: 100%;
       }
-      header > div:first-child > div:first-child {
+      header > div:first-child > div:first-child > div:first-child {
+        display: flex;
+        align-items: center;
+        gap: 8px;
         flex: 0 1 auto;
         min-width: 0;
       }
@@ -292,18 +302,18 @@
       }
       .auth-section {
         display: flex;
-        flex-direction: row;
-        align-items: center;
-        justify-content: flex-end;
+        flex-direction: column;
+        align-items: stretch;
         gap: 8px;
         flex: 0 0 auto;
       }
       .sync-status {
-        justify-content: flex-end;
+        justify-content: flex-start;
       }
       .user-info {
-        flex-direction: column;
-        align-items: stretch;
+        display: flex;
+        flex-direction: row;
+        align-items: center;
         gap: 8px;
       }
       .controls {
@@ -335,6 +345,10 @@
           <h1 id="boardTitle">Enkel Kanban</h1>
           <span class="edit-icon" title="Klicka för att redigera namn">✏️</span>
         </div>
+        <div id="syncStatus" class="sync-status" style="display:none;">
+          <span class="sync-indicator"></span>
+          <span id="syncText">Sparad lokalt</span>
+        </div>
         <div class="mobile-menu">
           <button type="button" class="menu-btn" id="mobileMenuBtn" title="Mer">⋮</button>
           <div class="menu-dropdown" id="menuDropdown">
@@ -344,10 +358,6 @@
         </div>
       </div>
       <div class="auth-section">
-        <div id="syncStatus" class="sync-status" style="display:none;">
-          <span class="sync-indicator"></span>
-          <span id="syncText">Sparad lokalt</span>
-        </div>
         <div id="userInfo" style="display:none;" class="user-info">
           <img id="userAvatar" class="user-avatar" alt="User" />
           <span id="userName"></span>
