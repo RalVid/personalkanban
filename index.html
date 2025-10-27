@@ -430,13 +430,13 @@
       syncToFirestore: async (userId, boardTitle, boardData) => {
         if (!syncEnabled || !userId) return;
         try {
-          updateSyncStatus('syncing', 'Synkar...');
+          window.updateSyncStatus('syncing', 'Synkar...');
           await setDoc(doc(db, 'kanban_boards', userId), {
             title: boardTitle,
             board: boardData,
             lastModified: Date.now()
           });
-          updateSyncStatus('synced', 'Synkad');
+          window.updateSyncStatus('synced', 'Synkad');
           // Show "Synced" status for at least 1 second
           setTimeout(() => {
             if (document.querySelector('.sync-indicator.synced')) {
@@ -445,7 +445,7 @@
           }, 1000);
         } catch (error) {
           console.error('Sync error:', error);
-          updateSyncStatus('error', 'Synkfel');
+          window.updateSyncStatus('error', 'Synkfel');
         }
       },
       loadFromFirestore: async (userId) => {
@@ -473,14 +473,15 @@
       }
     };
 
-    function updateSyncStatus(state, text) {
+    // Make updateSyncStatus globally accessible
+    window.updateSyncStatus = function(state, text) {
       const indicator = document.querySelector('.sync-indicator');
       const syncText = document.getElementById('syncText');
       if (indicator && syncText) {
         indicator.className = 'sync-indicator ' + state;
         syncText.textContent = text;
       }
-    }
+    };
 
     // Wait for DOM to be ready
     if (document.readyState === 'loading') {
@@ -540,7 +541,7 @@
           if (userAvatar && user.photoURL) userAvatar.src = user.photoURL;
 
           // Update sync status to show syncing
-          updateSyncStatus('syncing', 'Synkar...');
+          window.updateSyncStatus('syncing', 'Synkar...');
 
           // Notify main script
           window.dispatchEvent(new CustomEvent('firebaseAuthChanged', { 
@@ -559,7 +560,7 @@
           if (userInfo) userInfo.style.display = 'none';
           
           // Update sync status
-          updateSyncStatus('', 'Sparad lokalt');
+          window.updateSyncStatus('', 'Sparad lokalt');
 
           // Notify main script
           window.dispatchEvent(new CustomEvent('firebaseAuthChanged', { 
@@ -1030,7 +1031,7 @@
               save(board);
               render();
               isApplyingRemoteUpdate = false;
-              updateSyncStatus('synced', 'Synkad');
+              window.updateSyncStatus('synced', 'Synkad');
             } else if (cloudData.lastModified > localModified) {
               // Cloud is newer - use cloud data
               console.log('Cloud data is newer, using cloud data');
@@ -1043,7 +1044,7 @@
               save(board);
               render();
               isApplyingRemoteUpdate = false;
-              updateSyncStatus('synced', 'Synkad');
+              window.updateSyncStatus('synced', 'Synkad');
             } else {
               // Local has changes - merge intelligently
               console.log('Merging local and cloud data');
@@ -1092,7 +1093,7 @@
               isApplyingRemoteUpdate = false;
               await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
               console.log('Merged data uploaded to cloud');
-              updateSyncStatus('synced', 'Synkad');
+              window.updateSyncStatus('synced', 'Synkad');
             }
           } else {
             // No cloud data exists yet
@@ -1102,10 +1103,10 @@
             if (hasLocalData) {
               console.log('No cloud data, uploading local data');
               await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
-              updateSyncStatus('synced', 'Synkad');
+              window.updateSyncStatus('synced', 'Synkad');
             } else {
               console.log('No cloud data and no local data - starting fresh');
-              updateSyncStatus('synced', 'Synkad');
+              window.updateSyncStatus('synced', 'Synkad');
             }
             // Always render after sync check
             render();
@@ -1134,11 +1135,11 @@
                 // Quick delay to prevent save() triggering during render, then mark synced
                 setTimeout(() => { 
                   isApplyingRemoteUpdate = false; 
-                  updateSyncStatus('synced', 'Synkad'); 
+                  window.updateSyncStatus('synced', 'Synkad'); 
                 }, 100);
               } else {
                 console.log('Skipping realtime update - local is newer or same');
-                updateSyncStatus('synced', 'Synkad');
+                window.updateSyncStatus('synced', 'Synkad');
               }
             } else {
               console.log('Skipping realtime update - already applying remote update');
