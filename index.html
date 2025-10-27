@@ -257,10 +257,37 @@
       }
     }
 
-    // Show/hide UI elements based on Firebase availability
-    if (syncEnabled) {
-      document.getElementById('signInBtn').style.display = 'block';
-      document.getElementById('syncStatus').style.display = 'flex';
+    // Wait for DOM to be ready
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initFirebaseUI);
+    } else {
+      initFirebaseUI();
+    }
+
+    function initFirebaseUI() {
+      console.log('Initializing Firebase UI...');
+      
+      // Show/hide UI elements based on Firebase availability
+      if (syncEnabled) {
+        const signInBtn = document.getElementById('signInBtn');
+        const syncStatus = document.getElementById('syncStatus');
+        
+        console.log('Firebase enabled, signInBtn:', signInBtn, 'syncStatus:', syncStatus);
+        
+        if (signInBtn) {
+          signInBtn.style.display = 'block';
+          signInBtn.addEventListener('click', () => {
+            console.log('Sign in button clicked in module!');
+            window.firebaseAuth.signIn();
+          });
+        }
+        
+        if (syncStatus) {
+          syncStatus.style.display = 'flex';
+        }
+      } else {
+        console.log('Firebase not enabled');
+      }
     }
   </script>
 
@@ -515,27 +542,19 @@
     // Set page title to match board title
     document.title = loadBoardTitle();
 
-    // Firebase Authentication handlers
+    // Firebase Authentication handlers - moved to module script
     if (window.firebaseAuth) {
-      console.log('Firebase auth available, setting up handlers...');
-      
-      // Sign in button
-      const signInBtn = $('#signInBtn');
-      console.log('Sign in button found:', signInBtn);
-      
-      if (signInBtn) {
-        signInBtn.addEventListener('click', () => {
-          console.log('Sign in button clicked!');
-          window.firebaseAuth.signIn();
+      console.log('Firebase auth available in main script');
+
+      // Sign out button (keep this one here as backup)
+      const signOutBtn = $('#signOutBtn');
+      if (signOutBtn) {
+        signOutBtn.addEventListener('click', () => {
+          if (confirm('Vill du logga ut? Dina uppgifter kommer fortfarande att finnas kvar i molnet.')) {
+            window.firebaseAuth.signOut();
+          }
         });
       }
-
-      // Sign out button
-      $('#signOutBtn')?.addEventListener('click', () => {
-        if (confirm('Vill du logga ut? Dina uppgifter kommer fortfarande att finnas kvar i molnet.')) {
-          window.firebaseAuth.signOut();
-        }
-      });
 
       // Listen for auth state changes
       window.firebaseAuth.onAuthChange(async (user) => {
