@@ -47,6 +47,8 @@
     button.ghost { background: transparent; color: var(--muted); box-shadow: none; border: 1px solid var(--border); }
     /* Hide export/import buttons - use menu instead */
     #exportBtn, #importBtn { display: none; }
+    /* Hide menu - not needed with cloud sync */
+    .mobile-menu { display: none; }
     .sync-status { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); }
     .sync-indicator { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
     .sync-indicator.synced { background: var(--accent); }
