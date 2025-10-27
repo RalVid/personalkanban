@@ -30,14 +30,14 @@
     }
     h1 { 
       font-size: 1.4rem; margin: 0; letter-spacing: .3px; cursor: pointer;
-      display: flex; align-items: center; gap: 8px;
     }
     h1:hover { opacity: 0.8; }
-    h1:hover .edit-icon { opacity: 1; }
+    h1:hover + .edit-icon { opacity: 1; }
     .edit-icon {
       font-size: 1rem;
       opacity: 0.5;
       transition: opacity 0.2s;
+      cursor: pointer;
     }
     .controls {
       display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
@@ -205,7 +205,10 @@
 <body>
   <header>
     <div style="display: flex; align-items: center; gap: 12px;">
-      <h1 id="boardTitle">Enkel Kanban<span class="edit-icon" title="Klicka för att redigera">✏️</span></h1>
+      <div style="display: flex; align-items: center; gap: 8px;">
+        <h1 id="boardTitle">Enkel Kanban</h1>
+        <span class="edit-icon" title="Klicka för att redigera namn">✏️</span>
+      </div>
       <div class="mobile-menu">
         <button type="button" class="menu-btn" id="mobileMenuBtn" title="Mer">⋮</button>
         <div class="menu-dropdown" id="menuDropdown">
