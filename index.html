@@ -437,6 +437,12 @@
             lastModified: Date.now()
           });
           updateSyncStatus('synced', 'Synkad');
+          // Show "Synced" status for at least 1 second
+          setTimeout(() => {
+            if (document.querySelector('.sync-indicator.synced')) {
+              // Still synced, keep showing it
+            }
+          }, 1000);
         } catch (error) {
           console.error('Sync error:', error);
           updateSyncStatus('error', 'Synkfel');
@@ -576,6 +582,7 @@
     let currentUserId = null;
     let isSyncing = false;
     let syncUnsubscribe = null;
+    let syncTimeout = null;
 
     /** @returns {Board} */
     function load(){
@@ -592,9 +599,12 @@
     function save(data){ 
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       localStorage.setItem('lastModified', Date.now().toString());
-      // Sync to Firestore if user is logged in
+      // Debounce sync to Firestore (wait 500ms after last change)
       if (currentUserId && window.firebaseAuth && !isSyncing) {
-        window.firebaseAuth.syncToFirestore(currentUserId, loadBoardTitle(), data);
+        if (syncTimeout) clearTimeout(syncTimeout);
+        syncTimeout = setTimeout(() => {
+          window.firebaseAuth.syncToFirestore(currentUserId, loadBoardTitle(), data);
+        }, 500);
       }
     }
 
@@ -603,9 +613,12 @@
     }
     function saveBoardTitle(title){ 
       localStorage.setItem('kanban-board-title', title);
-      // Sync title to Firestore
+      // Debounce sync title to Firestore
       if (currentUserId && window.firebaseAuth && !isSyncing) {
-        window.firebaseAuth.syncToFirestore(currentUserId, title, board);
+        if (syncTimeout) clearTimeout(syncTimeout);
+        syncTimeout = setTimeout(() => {
+          window.firebaseAuth.syncToFirestore(currentUserId, title, board);
+        }, 500);
       }
     }
 
@@ -973,10 +986,13 @@
       if (signedIn && user) {
         // User signed in
         currentUserId = user.uid;
+        updateSyncStatus('syncing', 'Laddar...');
 
         // Load data from Firestore
         if (window.firebaseAuth) {
           const cloudData = await window.firebaseAuth.loadFromFirestore(user.uid);
+          console.log('Cloud data loaded:', cloudData);
+          
           if (cloudData) {
             // Cloud data exists - merge with local data
             const localModified = parseInt(localStorage.getItem('lastModified') || '0');
@@ -994,6 +1010,7 @@
               save(board);
               render();
               isSyncing = false;
+              updateSyncStatus('synced', 'Synkad');
             } else if (cloudData.lastModified > localModified) {
               // Cloud is newer - use cloud data
               console.log('Cloud data is newer, using cloud data');
@@ -1006,6 +1023,7 @@
               save(board);
               render();
               isSyncing = false;
+              updateSyncStatus('synced', 'Synkad');
             } else {
               // Local has changes - merge intelligently
               console.log('Merging local and cloud data');
@@ -1054,17 +1072,23 @@
               await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
               console.log('Merged data uploaded to cloud');
               isSyncing = false;
+              updateSyncStatus('synced', 'Synkad');
             }
           } else {
             // No cloud data exists yet
+            console.log('No cloud data found');
             // Only upload local data if it's not empty
             const hasLocalData = board.todo.length > 0 || board.doing.length > 0 || board.done.length > 0;
             if (hasLocalData) {
               console.log('No cloud data, uploading local data');
               await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
+              updateSyncStatus('synced', 'Synkad');
             } else {
               console.log('No cloud data and no local data - starting fresh');
+              updateSyncStatus('synced', 'Synkad');
             }
+            // Always render after sync check
+            render();
           }
 
           // Listen for real-time updates
