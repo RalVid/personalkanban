@@ -54,6 +54,57 @@
     .auth-section { display: flex; align-items: center; gap: 8px; }
     .user-info { display: flex; align-items: center; gap: 8px; font-size: .9rem; }
     .user-avatar { width: 32px; height: 32px; border-radius: 50%; }
+    
+    /* Mobile menu */
+    .mobile-menu {
+      position: relative;
+      display: none;
+    }
+    .menu-btn {
+      background: transparent;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 12px;
+      font-size: 1.2rem;
+      cursor: pointer;
+      border-radius: 8px;
+    }
+    .menu-dropdown {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: 100%;
+      margin-top: 4px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      box-shadow: var(--shadow);
+      min-width: 200px;
+      z-index: 1000;
+    }
+    .menu-dropdown.show {
+      display: block;
+    }
+    .menu-item {
+      width: 100%;
+      background: transparent;
+      color: var(--text);
+      border: none;
+      padding: 12px 16px;
+      text-align: left;
+      cursor: pointer;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    .menu-item:first-child {
+      border-radius: 12px 12px 0 0;
+    }
+    .menu-item:last-child {
+      border-radius: 0 0 12px 12px;
+    }
+    .menu-item:hover {
+      background: var(--border);
+    }
 
     main {
       max-width: 1100px; margin: 16px auto 40px; padding: 0 16px;
@@ -120,6 +171,14 @@
         width: 100%;
         padding: 12px 14px;
       }
+      /* Hide export/import buttons on mobile */
+      #exportBtn, #importBtn {
+        display: none;
+      }
+      /* Show mobile menu on mobile */
+      .mobile-menu {
+        display: block;
+      }
       main {
         grid-template-columns: 1fr;
         gap: 16px;
@@ -158,6 +217,13 @@
       <button type="submit" title="Lägg till i 'Att göra'">Lägg till</button>
       <button id="exportBtn" type="button" class="secondary" title="Exportera som JSON">Exportera</button>
       <button id="importBtn" type="button" class="ghost" title="Importera från JSON">Importera</button>
+      <div class="mobile-menu">
+        <button type="button" class="menu-btn" id="mobileMenuBtn" title="Mer">⋮</button>
+        <div class="menu-dropdown" id="menuDropdown">
+          <button type="button" class="menu-item" id="exportBtnMobile">📥 Exportera</button>
+          <button type="button" class="menu-item" id="importBtnMobile">📤 Importera</button>
+        </div>
+      </div>
     </form>
   </header>
 
@@ -569,6 +635,49 @@
     $('#addForm').addEventListener('submit', e => {
       e.preventDefault(); const v = $('#taskInput').value.trim(); if(!v) return;
       addTask(v, 'todo'); e.target.reset(); $('#taskInput').focus();
+    });
+
+    // Mobile menu toggle
+    const mobileMenuBtn = $('#mobileMenuBtn');
+    const menuDropdown = $('#menuDropdown');
+    if (mobileMenuBtn && menuDropdown) {
+      mobileMenuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menuDropdown.classList.toggle('show');
+      });
+
+      // Close menu when clicking outside
+      document.addEventListener('click', () => {
+        menuDropdown.classList.remove('show');
+      });
+
+      // Prevent menu from closing when clicking inside
+      menuDropdown.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+    }
+
+    // Mobile export button
+    $('#exportBtnMobile')?.addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(board, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'kanban.json'; a.click(); URL.revokeObjectURL(url);
+      menuDropdown?.classList.remove('show');
+    });
+
+    // Mobile import button
+    $('#importBtnMobile')?.addEventListener('click', async () => {
+      const input = document.createElement('input'); input.type = 'file'; input.accept = 'application/json';
+      input.onchange = async () => {
+        const file = input.files?.[0]; if(!file) return;
+        try { const text = await file.text(); const data = JSON.parse(text);
+          if(['todo','doing','done'].every(k => Array.isArray(data[k]))){ board = { todo: data.todo, doing: data.doing, done: data.done }; save(board); render(); }
+          else alert('Ogiltigt JSON-format');
+        } catch { alert('Kunde inte läsa filen'); }
+      };
+      input.click();
+      menuDropdown?.classList.remove('show');
     });
 
     // Clear buttons
