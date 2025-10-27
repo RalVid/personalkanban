@@ -517,10 +517,18 @@
 
     // Firebase Authentication handlers
     if (window.firebaseAuth) {
+      console.log('Firebase auth available, setting up handlers...');
+      
       // Sign in button
-      $('#signInBtn')?.addEventListener('click', () => {
-        window.firebaseAuth.signIn();
-      });
+      const signInBtn = $('#signInBtn');
+      console.log('Sign in button found:', signInBtn);
+      
+      if (signInBtn) {
+        signInBtn.addEventListener('click', () => {
+          console.log('Sign in button clicked!');
+          window.firebaseAuth.signIn();
+        });
+      }
 
       // Sign out button
       $('#signOutBtn')?.addEventListener('click', () => {
