@@ -26,7 +26,7 @@
     }
     header {
       max-width: 1100px; margin: 24px auto 8px; padding: 0 16px;
-      display: flex; align-items: center; justify-content: space-between;
+      display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
     }
     h1 { font-size: 1.4rem; margin: 0; letter-spacing: .3px; cursor: pointer; }
     h1:hover { opacity: 0.8; }
@@ -44,6 +44,15 @@
     }
     button.secondary { background: var(--accent-2); color: #0b1220; }
     button.ghost { background: transparent; color: var(--muted); box-shadow: none; border: 1px solid var(--border); }
+    .sync-status { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); }
+    .sync-indicator { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    .sync-indicator.synced { background: var(--accent); }
+    .sync-indicator.syncing { background: var(--accent-2); animation: pulse 1.5s infinite; }
+    .sync-indicator.error { background: var(--danger); }
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
+    .auth-section { display: flex; align-items: center; gap: 8px; }
+    .user-info { display: flex; align-items: center; gap: 8px; font-size: .9rem; }
+    .user-avatar { width: 32px; height: 32px; border-radius: 50%; }
 
     main {
       max-width: 1100px; margin: 16px auto 40px; padding: 0 16px;
@@ -87,6 +96,20 @@
 <body>
   <header>
     <h1 id="boardTitle">Enkel Kanban</h1>
+    <div class="auth-section">
+      <div id="syncStatus" class="sync-status" style="display:none;">
+        <span class="sync-indicator"></span>
+        <span id="syncText">Sparad lokalt</span>
+      </div>
+      <div id="userInfo" style="display:none;" class="user-info">
+        <img id="userAvatar" class="user-avatar" alt="User" />
+        <span id="userName"></span>
+        <button id="signOutBtn" class="ghost" title="Logga ut">Logga ut</button>
+      </div>
+      <button id="signInBtn" class="secondary" style="display:none;" title="Logga in med Google">
+        <span>🔐 Logga in</span>
+      </button>
+    </div>
     <form class="controls" id="addForm" autocomplete="off">
       <input id="taskInput" type="text" placeholder="Rubrik (obligatorisk)" aria-label="Ny uppgift" required />
       <button type="submit" title="Lägg till i 'Att göra'">Lägg till</button>
@@ -131,6 +154,117 @@
     Tips: Dra & släpp kort mellan kolumner. Dubbelklicka på ett kort för att redigera texten. Allt sparas automatiskt i din webbläsare (localStorage).
   </footer>
 
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+    import { getAuth, signInWithPopup, GoogleAuthProvider, onAuthStateChanged, signOut } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+    import { getFirestore, doc, setDoc, getDoc, onSnapshot } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js';
+
+    // Firebase configuration - REPLACE WITH YOUR OWN CONFIG
+    // Get this from Firebase Console > Project Settings > Your apps > Web app
+    const firebaseConfig = {
+      apiKey: "YOUR_API_KEY",
+      authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: "YOUR_PROJECT_ID",
+      storageBucket: "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: "YOUR_MESSAGING_SENDER_ID",
+      appId: "YOUR_APP_ID"
+    };
+
+    // Initialize Firebase
+    let app, auth, db, currentUser = null, unsubscribe = null;
+    let syncEnabled = false;
+
+    try {
+      app = initializeApp(firebaseConfig);
+      auth = getAuth(app);
+      db = getFirestore(app);
+      syncEnabled = true;
+    } catch (e) {
+      console.warn('Firebase not configured properly. Using local storage only.', e);
+    }
+
+    // Export Firebase functions to global scope
+    window.firebaseAuth = {
+      signIn: async () => {
+        if (!syncEnabled) return alert('Firebase är inte konfigurerad. Kontakta administratören.');
+        const provider = new GoogleAuthProvider();
+        try {
+          await signInWithPopup(auth, provider);
+        } catch (error) {
+          console.error('Sign in error:', error);
+          alert('Kunde inte logga in: ' + error.message);
+        }
+      },
+      signOut: async () => {
+        if (!syncEnabled) return;
+        try {
+          if (unsubscribe) unsubscribe();
+          await signOut(auth);
+        } catch (error) {
+          console.error('Sign out error:', error);
+        }
+      },
+      onAuthChange: (callback) => {
+        if (!syncEnabled) return;
+        onAuthStateChanged(auth, callback);
+      },
+      syncToFirestore: async (userId, boardTitle, boardData) => {
+        if (!syncEnabled || !userId) return;
+        try {
+          updateSyncStatus('syncing', 'Synkar...');
+          await setDoc(doc(db, 'kanban_boards', userId), {
+            title: boardTitle,
+            board: boardData,
+            lastModified: Date.now()
+          });
+          updateSyncStatus('synced', 'Synkad');
+        } catch (error) {
+          console.error('Sync error:', error);
+          updateSyncStatus('error', 'Synkfel');
+        }
+      },
+      loadFromFirestore: async (userId) => {
+        if (!syncEnabled || !userId) return null;
+        try {
+          const docRef = doc(db, 'kanban_boards', userId);
+          const docSnap = await getDoc(docRef);
+          if (docSnap.exists()) {
+            return docSnap.data();
+          }
+          return null;
+        } catch (error) {
+          console.error('Load error:', error);
+          return null;
+        }
+      },
+      listenToChanges: (userId, callback) => {
+        if (!syncEnabled || !userId) return null;
+        const docRef = doc(db, 'kanban_boards', userId);
+        return onSnapshot(docRef, (doc) => {
+          if (doc.exists()) {
+            callback(doc.data());
+          }
+        });
+      }
+    };
+
+    function updateSyncStatus(state, text) {
+      const indicator = document.querySelector('.sync-indicator');
+      const syncText = document.getElementById('syncText');
+      if (indicator && syncText) {
+        indicator.className = 'sync-indicator ' + state;
+        syncText.textContent = text;
+      }
+    }
+
+    // Show/hide UI elements based on Firebase availability
+    if (syncEnabled) {
+      document.getElementById('signInBtn').style.display = 'block';
+      document.getElementById('syncStatus').style.display = 'flex';
+    }
+  </script>
+
   <script>
     const STORAGE_KEY = 'simple-kanban-v1';
 
@@ -139,6 +273,10 @@
 
     const $ = (sel, root=document) => root.querySelector(sel);
     const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+    let currentUserId = null;
+    let isSyncing = false;
+    let syncUnsubscribe = null;
 
     /** @returns {Board} */
     function load(){
@@ -152,12 +290,25 @@
       }
     }
     /** @param {Board} data */
-    function save(data){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+    function save(data){ 
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      localStorage.setItem('lastModified', Date.now().toString());
+      // Sync to Firestore if user is logged in
+      if (currentUserId && window.firebaseAuth && !isSyncing) {
+        window.firebaseAuth.syncToFirestore(currentUserId, loadBoardTitle(), data);
+      }
+    }
 
     function loadBoardTitle(){
       return localStorage.getItem('kanban-board-title') || 'Enkel Kanban';
     }
-    function saveBoardTitle(title){ localStorage.setItem('kanban-board-title', title); }
+    function saveBoardTitle(title){ 
+      localStorage.setItem('kanban-board-title', title);
+      // Sync title to Firestore
+      if (currentUserId && window.firebaseAuth && !isSyncing) {
+        window.firebaseAuth.syncToFirestore(currentUserId, title, board);
+      }
+    }
 
     /** @type {Board} */
     let board = load();
@@ -364,6 +515,91 @@
 
     // Set page title to match board title
     document.title = loadBoardTitle();
+
+    // Firebase Authentication handlers
+    if (window.firebaseAuth) {
+      // Sign in button
+      $('#signInBtn')?.addEventListener('click', () => {
+        window.firebaseAuth.signIn();
+      });
+
+      // Sign out button
+      $('#signOutBtn')?.addEventListener('click', () => {
+        if (confirm('Vill du logga ut? Dina uppgifter kommer fortfarande att finnas kvar i molnet.')) {
+          window.firebaseAuth.signOut();
+        }
+      });
+
+      // Listen for auth state changes
+      window.firebaseAuth.onAuthChange(async (user) => {
+        if (user) {
+          // User is signed in
+          currentUserId = user.uid;
+          
+          // Update UI
+          $('#signInBtn').style.display = 'none';
+          $('#userInfo').style.display = 'flex';
+          $('#userName').textContent = user.displayName || user.email;
+          if (user.photoURL) {
+            $('#userAvatar').src = user.photoURL;
+          }
+
+          // Load data from Firestore
+          const cloudData = await window.firebaseAuth.loadFromFirestore(user.uid);
+          if (cloudData) {
+            // Merge with local data (cloud takes precedence if modified later)
+            const localModified = parseInt(localStorage.getItem('lastModified') || '0');
+            if (!localModified || cloudData.lastModified > localModified) {
+              isSyncing = true;
+              board = cloudData.board;
+              const newTitle = cloudData.title;
+              $('#boardTitle').textContent = newTitle;
+              document.title = newTitle;
+              saveBoardTitle(newTitle);
+              save(board);
+              render();
+              isSyncing = false;
+            } else {
+              // Local is newer, sync to cloud
+              await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
+            }
+          } else {
+            // No cloud data, upload local data
+            await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
+          }
+
+          // Listen for real-time updates
+          if (syncUnsubscribe) syncUnsubscribe();
+          syncUnsubscribe = window.firebaseAuth.listenToChanges(user.uid, (data) => {
+            if (!isSyncing && data.lastModified > (parseInt(localStorage.getItem('lastModified') || '0'))) {
+              isSyncing = true;
+              board = data.board;
+              const newTitle = data.title;
+              $('#boardTitle').textContent = newTitle;
+              document.title = newTitle;
+              localStorage.setItem('kanban-board-title', newTitle);
+              localStorage.setItem(STORAGE_KEY, JSON.stringify(data.board));
+              localStorage.setItem('lastModified', data.lastModified.toString());
+              render();
+              setTimeout(() => { isSyncing = false; }, 500);
+            }
+          });
+
+        } else {
+          // User is signed out
+          currentUserId = null;
+          if (syncUnsubscribe) syncUnsubscribe();
+          
+          // Update UI
+          $('#signInBtn').style.display = 'block';
+          $('#userInfo').style.display = 'none';
+          
+          // Show local-only status
+          const syncText = document.getElementById('syncText');
+          if (syncText) syncText.textContent = 'Sparad lokalt';
+        }
+      });
+    }
   </script>
 </body>
 </html>
