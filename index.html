@@ -781,9 +781,21 @@
             const localModified = parseInt(localStorage.getItem('lastModified') || '0');
             const hasLocalData = board.todo.length > 0 || board.doing.length > 0 || board.done.length > 0;
             
-            if (!hasLocalData || !localModified || cloudData.lastModified > localModified) {
-              // Cloud is newer or local is empty - use cloud data
-              console.log('Using cloud data (cloud is newer or local is empty)');
+            if (!hasLocalData || !localModified) {
+              // No local data or never modified - use cloud data
+              console.log('No local data, using cloud data');
+              isSyncing = true;
+              board = cloudData.board;
+              const newTitle = cloudData.title;
+              $('#boardTitle').textContent = newTitle;
+              document.title = newTitle;
+              saveBoardTitle(newTitle);
+              save(board);
+              render();
+              isSyncing = false;
+            } else if (cloudData.lastModified > localModified) {
+              // Cloud is newer - use cloud data
+              console.log('Cloud data is newer, using cloud data');
               isSyncing = true;
               board = cloudData.board;
               const newTitle = cloudData.title;
@@ -794,31 +806,53 @@
               render();
               isSyncing = false;
             } else {
-              // Local has data and is newer - but this might be a new device
-              // To avoid data loss, we should NOT overwrite cloud automatically
-              console.warn('Local data exists and is newer - manual merge may be needed');
-              const shouldOverwrite = confirm(
-                'Du har gjort ändringar lokalt, men det finns också data i molnet.\n\n' +
-                'Vill du ERSÄTTA molndata med dina lokala ändringar?\n\n' +
-                'Klicka OK för att ladda upp lokala ändringar.\n' +
-                'Klicka Avbryt för att ladda ner molndata (lokala ändringar försvinner).'
-              );
+              // Local has changes - merge intelligently
+              console.log('Merging local and cloud data');
               
-              if (shouldOverwrite) {
-                console.log('User chose to upload local data');
-                await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
+              // Create a map of existing tasks by ID from cloud
+              const cloudTaskIds = new Set();
+              ['todo', 'doing', 'done'].forEach(col => {
+                cloudData.board[col].forEach(task => cloudTaskIds.add(task.id));
+              });
+              
+              // Merge: Keep all cloud tasks + add local tasks that don't exist in cloud
+              const merged = { todo: [], doing: [], done: [] };
+              
+              // First, add all cloud tasks
+              ['todo', 'doing', 'done'].forEach(col => {
+                merged[col] = [...cloudData.board[col]];
+              });
+              
+              // Then, add local tasks that are NOT in cloud (new tasks)
+              ['todo', 'doing', 'done'].forEach(col => {
+                board[col].forEach(task => {
+                  if (!cloudTaskIds.has(task.id)) {
+                    // This is a new task created locally, add it
+                    merged[col].push(task);
+                    console.log(`Adding new local task: ${task.headline}`);
+                  }
+                });
+              });
+              
+              isSyncing = true;
+              board = merged;
+              // Keep local title if modified, otherwise use cloud title
+              const localTitle = loadBoardTitle();
+              if (localTitle !== 'Enkel Kanban' && localTitle !== cloudData.title) {
+                $('#boardTitle').textContent = localTitle;
+                document.title = localTitle;
               } else {
-                console.log('User chose to download cloud data');
-                isSyncing = true;
-                board = cloudData.board;
-                const newTitle = cloudData.title;
-                $('#boardTitle').textContent = newTitle;
-                document.title = newTitle;
-                saveBoardTitle(newTitle);
-                save(board);
-                render();
-                isSyncing = false;
+                $('#boardTitle').textContent = cloudData.title;
+                document.title = cloudData.title;
+                saveBoardTitle(cloudData.title);
               }
+              save(board);
+              render();
+              
+              // Upload merged data to cloud
+              await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
+              console.log('Merged data uploaded to cloud');
+              isSyncing = false;
             }
           } else {
             // No cloud data exists yet
