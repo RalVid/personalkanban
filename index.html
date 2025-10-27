@@ -28,6 +28,13 @@
       max-width: 1100px; margin: 24px auto 8px; padding: 0 16px;
       display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
     }
+    header > div:first-child {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    header > .controls {
+      flex: 0 0 auto;
+    }
     h1 { 
       font-size: 1.4rem; margin: 0; letter-spacing: .3px; cursor: pointer;
     }
@@ -266,11 +273,35 @@
         align-items: stretch;
         gap: 12px;
       }
+      header > div:first-child {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        width: 100%;
+      }
+      header > div:first-child > div:first-child {
+        flex: 0 1 auto;
+        min-width: 0;
+      }
       h1 {
         font-size: 1.2rem;
-        text-align: center;
+        text-align: left;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
       }
       .auth-section {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: flex-end;
+        gap: 8px;
+        flex: 0 0 auto;
+      }
+      .sync-status {
+        justify-content: flex-end;
+      }
+      .user-info {
         flex-direction: column;
         align-items: stretch;
         gap: 8px;
@@ -293,43 +324,39 @@
       .column {
         min-width: unset;
       }
-      .sync-status {
-        justify-content: center;
-      }
-      .user-info {
-        justify-content: center;
-      }
     }
   </style>
 </head>
 <body>
   <header>
-    <div style="display: flex; align-items: center; gap: 12px;">
-      <div style="display: flex; align-items: center; gap: 8px;">
-        <h1 id="boardTitle">Enkel Kanban</h1>
-        <span class="edit-icon" title="Klicka för att redigera namn">✏️</span>
-      </div>
-      <div class="mobile-menu">
-        <button type="button" class="menu-btn" id="mobileMenuBtn" title="Mer">⋮</button>
-        <div class="menu-dropdown" id="menuDropdown">
-          <button type="button" class="menu-item" id="exportBtnMobile">📥 Exportera</button>
-          <button type="button" class="menu-item" id="importBtnMobile">📤 Importera</button>
+    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%;">
+      <div style="display: flex; align-items: center; gap: 12px;">
+        <div style="display: flex; align-items: center; gap: 8px;">
+          <h1 id="boardTitle">Enkel Kanban</h1>
+          <span class="edit-icon" title="Klicka för att redigera namn">✏️</span>
+        </div>
+        <div class="mobile-menu">
+          <button type="button" class="menu-btn" id="mobileMenuBtn" title="Mer">⋮</button>
+          <div class="menu-dropdown" id="menuDropdown">
+            <button type="button" class="menu-item" id="exportBtnMobile">📥 Exportera</button>
+            <button type="button" class="menu-item" id="importBtnMobile">📤 Importera</button>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="auth-section">
-      <div id="syncStatus" class="sync-status" style="display:none;">
-        <span class="sync-indicator"></span>
-        <span id="syncText">Sparad lokalt</span>
+      <div class="auth-section">
+        <div id="syncStatus" class="sync-status" style="display:none;">
+          <span class="sync-indicator"></span>
+          <span id="syncText">Sparad lokalt</span>
+        </div>
+        <div id="userInfo" style="display:none;" class="user-info">
+          <img id="userAvatar" class="user-avatar" alt="User" />
+          <span id="userName"></span>
+          <button id="signOutBtn" class="ghost" title="Logga ut">Logga ut</button>
+        </div>
+        <button id="signInBtn" class="secondary" style="display:none;" title="Logga in med Google">
+          <span>🔐 Logga in</span>
+        </button>
       </div>
-      <div id="userInfo" style="display:none;" class="user-info">
-        <img id="userAvatar" class="user-avatar" alt="User" />
-        <span id="userName"></span>
-        <button id="signOutBtn" class="ghost" title="Logga ut">Logga ut</button>
-      </div>
-      <button id="signInBtn" class="secondary" style="display:none;" title="Logga in med Google">
-        <span>🔐 Logga in</span>
-      </button>
     </div>
     <div class="controls">
       <button id="addTaskBtn" type="button" title="Lägg till ny uppgift">➕ Lägg till</button>
