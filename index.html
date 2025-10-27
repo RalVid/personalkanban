@@ -28,7 +28,8 @@
       max-width: 1100px; margin: 24px auto 8px; padding: 0 16px;
       display: flex; align-items: center; justify-content: space-between;
     }
-    h1 { font-size: 1.4rem; margin: 0; letter-spacing: .3px; }
+    h1 { font-size: 1.4rem; margin: 0; letter-spacing: .3px; cursor: pointer; }
+    h1:hover { opacity: 0.8; }
     .controls {
       display: flex; gap: 8px; align-items: center;
     }
@@ -85,7 +86,7 @@
 </head>
 <body>
   <header>
-    <h1>Enkel Kanban</h1>
+    <h1 id="boardTitle">Enkel Kanban</h1>
     <form class="controls" id="addForm" autocomplete="off">
       <input id="taskInput" type="text" placeholder="Rubrik (obligatorisk)" aria-label="Ny uppgift" required />
       <button type="submit" title="Lägg till i 'Att göra'">Lägg till</button>
@@ -152,6 +153,11 @@
     }
     /** @param {Board} data */
     function save(data){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+    function loadBoardTitle(){
+      return localStorage.getItem('kanban-board-title') || 'Enkel Kanban';
+    }
+    function saveBoardTitle(title){ localStorage.setItem('kanban-board-title', title); }
 
     /** @type {Board} */
     let board = load();
@@ -297,6 +303,37 @@
       if (confirm(`Töm kolumnen "${col}"?`)) { board[col] = []; save(board); render(); }
     }));
 
+    // Editable board title
+    const titleEl = $('#boardTitle');
+    titleEl.textContent = loadBoardTitle();
+    titleEl.addEventListener('click', () => {
+      const current = titleEl.textContent;
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.value = current;
+      input.style.fontSize = '1.4rem';
+      input.style.fontWeight = 'inherit';
+      input.style.background = 'transparent';
+      input.style.color = 'inherit';
+      input.style.border = '1px solid var(--border)';
+      input.style.borderRadius = '8px';
+      input.style.padding = '6px 10px';
+      input.style.width = 'max-content';
+      input.style.minWidth = '200px';
+      titleEl.replaceWith(input);
+      input.focus();
+      input.select();
+      const finish = () => {
+        const val = input.value.trim() || 'Enkel Kanban';
+        saveBoardTitle(val);
+        titleEl.textContent = val;
+        document.title = val;
+        input.replaceWith(titleEl);
+      };
+      input.addEventListener('blur', finish);
+      input.addEventListener('keydown', e => { if(e.key==='Enter') finish(); if(e.key==='Escape') { titleEl.textContent = current; input.replaceWith(titleEl); } });
+    });
+
     // Export/Import JSON
     $('#exportBtn').addEventListener('click', () => {
       const blob = new Blob([JSON.stringify(board, null, 2)], { type: 'application/json' });
@@ -324,6 +361,9 @@
     } else {
       render();
     }
+
+    // Set page title to match board title
+    document.title = loadBoardTitle();
   </script>
 </body>
 </html>
