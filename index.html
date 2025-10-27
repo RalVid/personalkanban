@@ -58,7 +58,6 @@
     /* Mobile menu */
     .mobile-menu {
       position: relative;
-      display: none;
     }
     .menu-btn {
       background: transparent;
@@ -68,6 +67,9 @@
       font-size: 1.2rem;
       cursor: pointer;
       border-radius: 8px;
+    }
+    .menu-btn:hover {
+      background: var(--border);
     }
     .menu-dropdown {
       display: none;
@@ -174,10 +176,6 @@
       /* Hide export/import buttons on mobile */
       #exportBtn, #importBtn {
         display: none;
-      }
-      /* Show mobile menu on mobile */
-      .mobile-menu {
-        display: block;
       }
       main {
         grid-template-columns: 1fr;
