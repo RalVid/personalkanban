@@ -758,14 +758,8 @@
       input.click();
     });
 
-    // Init med exempel om tomt
-    if(board.todo.length + board.doing.length + board.done.length === 0){
-      addTask('Välkommen!', 'Dubbelklicka för att redigera.');
-      addTask('Dra mig till Pågår →', '', 'todo');
-      addTask('Klarmarkera', 'Dra till Klart för att markera som färdig', 'doing');
-    } else {
-      render();
-    }
+    // Render initial board (no example tasks - could overwrite cloud data)
+    render();
 
     // Set page title to match board title
     document.title = loadBoardTitle();
