@@ -609,9 +609,9 @@
       // Debounce sync to Firestore (wait 500ms after last change)
       if (currentUserId && window.firebaseAuth) {
         if (syncTimeout) clearTimeout(syncTimeout);
-        syncTimeout = setTimeout(() => {
+        syncTimeout = setTimeout(async () => {
           console.log('Syncing local changes to Firestore');
-          window.firebaseAuth.syncToFirestore(currentUserId, loadBoardTitle(), data);
+          await window.firebaseAuth.syncToFirestore(currentUserId, loadBoardTitle(), data);
         }, 500);
       }
     }
@@ -631,9 +631,9 @@
       // Debounce sync title to Firestore
       if (currentUserId && window.firebaseAuth) {
         if (syncTimeout) clearTimeout(syncTimeout);
-        syncTimeout = setTimeout(() => {
+        syncTimeout = setTimeout(async () => {
           console.log('Syncing title to Firestore');
-          window.firebaseAuth.syncToFirestore(currentUserId, title, board);
+          await window.firebaseAuth.syncToFirestore(currentUserId, title, board);
         }, 500);
       }
     }
@@ -1131,9 +1131,14 @@
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(data.board));
                 localStorage.setItem('lastModified', data.lastModified.toString());
                 render();
-                setTimeout(() => { isApplyingRemoteUpdate = false; updateSyncStatus('synced', 'Synkad'); }, 500);
+                // Quick delay to prevent save() triggering during render, then mark synced
+                setTimeout(() => { 
+                  isApplyingRemoteUpdate = false; 
+                  updateSyncStatus('synced', 'Synkad'); 
+                }, 100);
               } else {
                 console.log('Skipping realtime update - local is newer or same');
+                updateSyncStatus('synced', 'Synkad');
               }
             } else {
               console.log('Skipping realtime update - already applying remote update');
