@@ -1056,8 +1056,8 @@
             const localModified = parseInt(localStorage.getItem('lastModified') || '0');
             const hasLocalData = board.todo.length > 0 || board.doing.length > 0 || board.done.length > 0;
             
-            if (!hasLocalData || !localModified) {
-              // No local data or never modified - use cloud data
+            if (!hasLocalData && !localModified) {
+              // No local data at all - use cloud data
               console.log('No local data, using cloud data');
               isApplyingRemoteUpdate = true;
               board = cloudData.board;
@@ -1069,8 +1069,51 @@
               render();
               isApplyingRemoteUpdate = false;
               window.updateSyncStatus('synced', 'Synkad');
-            } else if (cloudData.lastModified > localModified) {
-              // Cloud is newer - use cloud data
+            } else if (cloudData.lastModified > localModified && hasLocalData) {
+              // Cloud is newer but we have local data - merge them
+              console.log('Cloud data is newer, merging with local data');
+              
+              // Create a map of existing tasks by ID from cloud
+              const cloudTaskIds = new Set();
+              ['todo', 'doing', 'done'].forEach(col => {
+                cloudData.board[col].forEach(task => cloudTaskIds.add(task.id));
+              });
+              
+              // Merge: Keep all cloud tasks + add local tasks that don't exist in cloud
+              const merged = { todo: [], doing: [], done: [] };
+              
+              // First, add all cloud tasks
+              ['todo', 'doing', 'done'].forEach(col => {
+                merged[col] = [...cloudData.board[col]];
+              });
+              
+              // Then, add local tasks that are NOT in cloud (new offline tasks)
+              ['todo', 'doing', 'done'].forEach(col => {
+                board[col].forEach(task => {
+                  if (!cloudTaskIds.has(task.id)) {
+                    // This is a new task created offline, add it
+                    merged[col].push(task);
+                    console.log(`Adding new offline task: ${task.headline}`);
+                  }
+                });
+              });
+              
+              isApplyingRemoteUpdate = true;
+              board = merged;
+              const newTitle = cloudData.title;
+              $('#boardTitle').textContent = newTitle;
+              document.title = newTitle;
+              saveBoardTitle(newTitle);
+              save(board);
+              render();
+              
+              // Upload merged data to cloud
+              isApplyingRemoteUpdate = false;
+              await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
+              console.log('Merged data (with offline tasks) uploaded to cloud');
+              window.updateSyncStatus('synced', 'Synkad');
+            } else if (cloudData.lastModified > localModified && !hasLocalData) {
+              // Cloud is newer and no local data - use cloud data
               console.log('Cloud data is newer, using cloud data');
               isApplyingRemoteUpdate = true;
               board = cloudData.board;
