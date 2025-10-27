@@ -314,6 +314,9 @@
           if (userName) userName.textContent = user.displayName || user.email;
           if (userAvatar && user.photoURL) userAvatar.src = user.photoURL;
 
+          // Update sync status to show syncing
+          updateSyncStatus('syncing', 'Synkar...');
+
           // Notify main script
           window.dispatchEvent(new CustomEvent('firebaseAuthChanged', { 
             detail: { user, signedIn: true } 
@@ -326,11 +329,12 @@
           // Update UI
           const signInBtn = document.getElementById('signInBtn');
           const userInfo = document.getElementById('userInfo');
-          const syncText = document.getElementById('syncText');
           
           if (signInBtn) signInBtn.style.display = 'block';
           if (userInfo) userInfo.style.display = 'none';
-          if (syncText) syncText.textContent = 'Sparad lokalt';
+          
+          // Update sync status
+          updateSyncStatus('', 'Sparad lokalt');
 
           // Notify main script
           window.dispatchEvent(new CustomEvent('firebaseAuthChanged', { 
