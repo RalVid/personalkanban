@@ -1007,7 +1007,7 @@
       if (signedIn && user) {
         // User signed in
         currentUserId = user.uid;
-        updateSyncStatus('syncing', 'Laddar...');
+        window.updateSyncStatus('syncing', 'Laddar...');
 
         // Load data from Firestore
         if (window.firebaseAuth) {
