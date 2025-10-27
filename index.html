@@ -580,7 +580,7 @@
     const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
 
     let currentUserId = null;
-    let isSyncing = false;
+    let isApplyingRemoteUpdate = false;  // True when receiving data from Firestore
     let syncUnsubscribe = null;
     let syncTimeout = null;
 
@@ -597,12 +597,20 @@
     }
     /** @param {Board} data */
     function save(data){ 
+      // Don't save if we're currently applying a remote update
+      if (isApplyingRemoteUpdate) {
+        console.log('Skipping save - applying remote update');
+        return;
+      }
+      
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
       localStorage.setItem('lastModified', Date.now().toString());
+      
       // Debounce sync to Firestore (wait 500ms after last change)
-      if (currentUserId && window.firebaseAuth && !isSyncing) {
+      if (currentUserId && window.firebaseAuth) {
         if (syncTimeout) clearTimeout(syncTimeout);
         syncTimeout = setTimeout(() => {
+          console.log('Syncing local changes to Firestore');
           window.firebaseAuth.syncToFirestore(currentUserId, loadBoardTitle(), data);
         }, 500);
       }
@@ -612,11 +620,19 @@
       return localStorage.getItem('kanban-board-title') || 'Enkel Kanban';
     }
     function saveBoardTitle(title){ 
+      // Don't save if we're currently applying a remote update
+      if (isApplyingRemoteUpdate) {
+        console.log('Skipping title save - applying remote update');
+        return;
+      }
+      
       localStorage.setItem('kanban-board-title', title);
+      
       // Debounce sync title to Firestore
-      if (currentUserId && window.firebaseAuth && !isSyncing) {
+      if (currentUserId && window.firebaseAuth) {
         if (syncTimeout) clearTimeout(syncTimeout);
         syncTimeout = setTimeout(() => {
+          console.log('Syncing title to Firestore');
           window.firebaseAuth.syncToFirestore(currentUserId, title, board);
         }, 500);
       }
@@ -1005,7 +1021,7 @@
             if (!hasLocalData || !localModified) {
               // No local data or never modified - use cloud data
               console.log('No local data, using cloud data');
-              isSyncing = true;
+              isApplyingRemoteUpdate = true;
               board = cloudData.board;
               const newTitle = cloudData.title;
               $('#boardTitle').textContent = newTitle;
@@ -1013,12 +1029,12 @@
               saveBoardTitle(newTitle);
               save(board);
               render();
-              isSyncing = false;
+              isApplyingRemoteUpdate = false;
               updateSyncStatus('synced', 'Synkad');
             } else if (cloudData.lastModified > localModified) {
               // Cloud is newer - use cloud data
               console.log('Cloud data is newer, using cloud data');
-              isSyncing = true;
+              isApplyingRemoteUpdate = true;
               board = cloudData.board;
               const newTitle = cloudData.title;
               $('#boardTitle').textContent = newTitle;
@@ -1026,7 +1042,7 @@
               saveBoardTitle(newTitle);
               save(board);
               render();
-              isSyncing = false;
+              isApplyingRemoteUpdate = false;
               updateSyncStatus('synced', 'Synkad');
             } else {
               // Local has changes - merge intelligently
@@ -1057,7 +1073,7 @@
                 });
               });
               
-              isSyncing = true;
+              isApplyingRemoteUpdate = true;
               board = merged;
               // Keep local title if modified, otherwise use cloud title
               const localTitle = loadBoardTitle();
@@ -1073,9 +1089,9 @@
               render();
               
               // Upload merged data to cloud
+              isApplyingRemoteUpdate = false;
               await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
               console.log('Merged data uploaded to cloud');
-              isSyncing = false;
               updateSyncStatus('synced', 'Synkad');
             }
           } else {
@@ -1099,14 +1115,14 @@
           if (syncUnsubscribe) syncUnsubscribe();
           syncUnsubscribe = window.firebaseAuth.listenToChanges(user.uid, (data) => {
             console.log('Realtime update received:', data);
-            console.log('isSyncing:', isSyncing, 'lastModified:', localStorage.getItem('lastModified'), 'cloud:', data.lastModified);
+            console.log('isApplyingRemoteUpdate:', isApplyingRemoteUpdate, 'lastModified:', localStorage.getItem('lastModified'), 'cloud:', data.lastModified);
             
-            if (!isSyncing) {
+            if (!isApplyingRemoteUpdate) {
               const localModified = parseInt(localStorage.getItem('lastModified') || '0');
               // Always render on first snapshot, or if cloud is newer
               if (!localModified || data.lastModified > localModified) {
                 console.log('Applying realtime update');
-                isSyncing = true;
+                isApplyingRemoteUpdate = true;
                 board = data.board;
                 const newTitle = data.title;
                 $('#boardTitle').textContent = newTitle;
@@ -1115,10 +1131,12 @@
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(data.board));
                 localStorage.setItem('lastModified', data.lastModified.toString());
                 render();
-                setTimeout(() => { isSyncing = false; updateSyncStatus('synced', 'Synkad'); }, 500);
+                setTimeout(() => { isApplyingRemoteUpdate = false; updateSyncStatus('synced', 'Synkad'); }, 500);
               } else {
                 console.log('Skipping realtime update - local is newer or same');
               }
+            } else {
+              console.log('Skipping realtime update - already applying remote update');
             }
           });
         }
