@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Enkel Kanban</title>
+  <style>
+    :root {
+      --bg: #0f172a;        /* slate-900 */
+      --card: #111827;      /* gray-900 */
+      --muted: #94a3b8;     /* slate-400 */
+      --text: #e5e7eb;      /* gray-200 */
+      --accent: #22c55e;    /* green-500 */
+      --accent-2: #3b82f6;  /* blue-500 */
+      --danger: #ef4444;    /* red-500 */
+      --border: #1f2937;    /* gray-800 */
+      --shadow: 0 10px 20px rgba(0,0,0,.25);
+      --radius: 16px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body {
+      margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial;
+      background: radial-gradient(1200px 800px at 20% -10%, #1f2937 0%, var(--bg) 40%), var(--bg);
+      color: var(--text);
+    }
+    header {
+      max-width: 1100px; margin: 24px auto 8px; padding: 0 16px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    h1 { font-size: 1.4rem; margin: 0; letter-spacing: .3px; }
+    .controls {
+      display: flex; gap: 8px; align-items: center;
+    }
+    input[type="text"]{
+      background: var(--card); border: 1px solid var(--border); color: var(--text);
+      padding: 10px 12px; border-radius: 10px; width: min(360px, 60vw);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.02);
+    }
+    button {
+      border: 0; background: var(--accent); color: #051b0d; font-weight: 700;
+      padding: 10px 14px; border-radius: 10px; cursor: pointer; box-shadow: var(--shadow);
+    }
+    button.secondary { background: var(--accent-2); color: #0b1220; }
+    button.ghost { background: transparent; color: var(--muted); box-shadow: none; border: 1px solid var(--border); }
+
+    main {
+      max-width: 1100px; margin: 16px auto 40px; padding: 0 16px;
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px;
+    }
+    @media (max-width: 900px){ main { grid-template-columns: 1fr; } }
+
+    .column {
+      background: linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.00));
+      border: 1px solid var(--border); border-radius: var(--radius); min-height: 260px;
+      display: flex; flex-direction: column; box-shadow: var(--shadow);
+    }
+    .col-header { display:flex; justify-content: space-between; align-items: center; padding: 14px 14px 8px; }
+    .col-title { font-weight: 700; letter-spacing: .3px; }
+
+    .dropzone {
+      padding: 8px 10px 14px; flex: 1; border-radius: 0 0 var(--radius) var(--radius);
+      outline: 2px dashed transparent; outline-offset: -6px;
+      transition: outline-color .15s ease, background-color .15s ease;
+    }
+    .dropzone.dragover { outline-color: #3b82f6aa; background: rgba(59,130,246,0.07); }
+
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      padding: 10px 12px; margin: 8px 4px; box-shadow: var(--shadow);
+      display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start;
+    }
+    .card[draggable="true"] { cursor: grab; }
+    .headline { font-weight: 700; font-size: 1.05rem; margin-bottom: 4px; }
+    .text { white-space: pre-wrap; word-break: break-word; color: var(--muted); font-size: .95rem; }
+    .meta { color: var(--muted); font-size: .75rem; margin-top: 4px; }
+    .actions { display: flex; gap: 6px; }
+    .icon-btn { background: transparent; color: var(--muted); border: 1px solid var(--border); padding: 6px 8px; border-radius: 8px; cursor: pointer; }
+    .icon-btn:hover { color: var(--text); border-color: #334155; }
+    .danger { color: #fecaca; border-color: #7f1d1d; }
+    .danger:hover { color: white; border-color: #991b1b; background: rgba(239,68,68,.12); }
+
+    footer { max-width: 1100px; margin: 0 auto 28px; padding: 0 16px; color: var(--muted); font-size: .9rem; }
+    a { color: #93c5fd; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Enkel Kanban</h1>
+    <form class="controls" id="addForm" autocomplete="off">
+      <input id="taskInput" type="text" placeholder="Rubrik (obligatorisk)" aria-label="Ny uppgift" required />
+      <button type="submit" title="Lägg till i 'Att göra'">Lägg till</button>
+      <button id="exportBtn" type="button" class="secondary" title="Exportera som JSON">Exportera</button>
+      <button id="importBtn" type="button" class="ghost" title="Importera från JSON">Importera</button>
+    </form>
+  </header>
+
+  <main>
+    <section class="column" data-col="todo" aria-label="Att göra">
+      <div class="col-header">
+        <div class="col-title">Att göra</div>
+        <div>
+          <button class="icon-btn" data-clear="todo" title="Töm kolumn">Töm</button>
+        </div>
+      </div>
+      <div class="dropzone" data-col="todo" aria-label="Släpp uppgifter här" aria-dropeffect="move"></div>
+    </section>
+
+    <section class="column" data-col="doing" aria-label="Pågår">
+      <div class="col-header">
+        <div class="col-title">Pågår</div>
+        <div>
+          <button class="icon-btn" data-clear="doing" title="Töm kolumn">Töm</button>
+        </div>
+      </div>
+      <div class="dropzone" data-col="doing" aria-label="Släpp uppgifter här" aria-dropeffect="move"></div>
+    </section>
+
+    <section class="column" data-col="done" aria-label="Klart">
+      <div class="col-header">
+        <div class="col-title">Klart</div>
+        <div>
+          <button class="icon-btn" data-clear="done" title="Töm kolumn">Töm</button>
+        </div>
+      </div>
+      <div class="dropzone" data-col="done" aria-label="Släpp uppgifter här" aria-dropeffect="move"></div>
+    </section>
+  </main>
+
+  <footer>
+    Tips: Dra & släpp kort mellan kolumner. Dubbelklicka på ett kort för att redigera texten. Allt sparas automatiskt i din webbläsare (localStorage).
+  </footer>
+
+  <script>
+    const STORAGE_KEY = 'simple-kanban-v1';
+
+    /** @typedef {{ id:string, headline:string, text:string, created:number }} Task */
+    /** @typedef {{ todo: Task[], doing: Task[], done: Task[] }} Board */
+
+    const $ = (sel, root=document) => root.querySelector(sel);
+    const $$ = (sel, root=document) => Array.from(root.querySelectorAll(sel));
+
+    /** @returns {Board} */
+    function load(){
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return { todo: [], doing: [], done: [] };
+        const data = JSON.parse(raw);
+        return { todo: data.todo||[], doing: data.doing||[], done: data.done||[] };
+      } catch(e){
+        console.warn('Kunde inte läsa lagring', e); return { todo: [], doing: [], done: [] };
+      }
+    }
+    /** @param {Board} data */
+    function save(data){ localStorage.setItem(STORAGE_KEY, JSON.stringify(data)); }
+
+    /** @type {Board} */
+    let board = load();
+
+    function uid(){ return Math.random().toString(36).slice(2,9); }
+
+    function render(){
+      ['todo','doing','done'].forEach(col => {
+        const zone = `.dropzone[data-col="${col}"]`;
+        const container = document.querySelector(zone);
+        container.innerHTML = '';
+        board[col].forEach(task => container.appendChild(renderCard(task)));
+      });
+    }
+
+    function renderCard(task){
+      const el = document.createElement('article');
+      el.className = 'card';
+      el.setAttribute('draggable', 'true');
+      el.dataset.id = task.id;
+
+      el.addEventListener('dragstart', e => {
+        e.dataTransfer.setData('text/plain', JSON.stringify({ id: task.id }));
+      });
+
+      const headline = document.createElement('div');
+      headline.className = 'headline';
+      headline.textContent = task.headline || task.text;
+
+      const text = document.createElement('div');
+      text.className = 'text';
+      text.textContent = task.text || '';
+      if (!task.headline) text.style.display = 'none';
+
+      const meta = document.createElement('div');
+      meta.className = 'meta';
+      meta.textContent = new Date(task.created).toLocaleString();
+
+      const left = document.createElement('div');
+      left.appendChild(headline); left.appendChild(text); left.appendChild(meta);
+
+      const del = document.createElement('button');
+      del.className = 'icon-btn danger';
+      del.innerText = 'Ta bort';
+      del.title = 'Ta bort uppgift';
+      del.addEventListener('click', () => removeTask(task.id));
+
+      const actions = document.createElement('div');
+      actions.className = 'actions';
+      actions.appendChild(del);
+
+      el.appendChild(left); el.appendChild(actions);
+
+      // Inline-redigering
+      el.addEventListener('dblclick', () => startEdit(el, task));
+
+      return el;
+    }
+
+    function startEdit(cardEl, task){
+      const left = cardEl.querySelector('div');
+      const currentHeadline = task.headline || task.text || '';
+      const currentText = task.text || '';
+      
+      const form = document.createElement('div');
+      const headlineInput = document.createElement('input');
+      headlineInput.type = 'text';
+      headlineInput.value = currentHeadline;
+      headlineInput.placeholder = 'Rubrik';
+      headlineInput.style.width = '100%'; headlineInput.style.background = 'transparent'; 
+      headlineInput.style.color = 'inherit'; headlineInput.style.border = '1px solid var(--border)';
+      headlineInput.style.borderRadius = '8px'; headlineInput.style.padding = '6px';
+      headlineInput.style.marginBottom = '6px'; headlineInput.style.fontWeight = '700';
+      
+      const textInput = document.createElement('textarea');
+      textInput.value = currentText;
+      textInput.placeholder = 'Beskrivning (valfri)';
+      textInput.rows = Math.min(4, Math.max(2, currentText.split('\n').length));
+      textInput.style.width = '100%'; textInput.style.background = 'transparent'; 
+      textInput.style.color = 'inherit'; textInput.style.border = '1px solid var(--border)';
+      textInput.style.borderRadius = '8px'; textInput.style.padding = '6px';
+      
+      form.appendChild(headlineInput);
+      form.appendChild(textInput);
+      left.innerHTML = '';
+      left.appendChild(form);
+      headlineInput.focus();
+      
+      const finish = () => {
+        const h = headlineInput.value.trim();
+        const t = textInput.value.trim();
+        if(h){ task.headline = h; task.text = t; save(board); render(); }
+        else { removeTask(task.id); }
+      };
+      headlineInput.addEventListener('blur', (e) => { if(!form.contains(e.relatedTarget)) finish(); });
+      textInput.addEventListener('blur', (e) => { if(!form.contains(e.relatedTarget)) finish(); });
+      textInput.addEventListener('keydown', e => { if(e.key==='Enter' && (e.ctrlKey||e.metaKey)) finish(); });
+    }
+
+    function addTask(headline, text='', column='todo'){
+      const task = { id: uid(), headline, text, created: Date.now() };
+      board[column].push(task); save(board); render();
+    }
+
+    function removeTask(id){
+      ['todo','doing','done'].forEach(col => {
+        const i = board[col].findIndex(t => t.id === id);
+        if(i>-1) board[col].splice(i,1);
+      });
+      save(board); render();
+    }
+
+    function moveTask(id, toCol){
+      if(!['todo','doing','done'].includes(toCol)) return;
+      let moving = null, from = null;
+      for(const col of ['todo','doing','done']){
+        const i = board[col].findIndex(t => t.id===id);
+        if(i>-1){ moving = board[col].splice(i,1)[0]; from = col; break; }
+      }
+      if(moving){ board[toCol].push(moving); save(board); render(); }
+    }
+
+    // DnD
+    $$('.dropzone').forEach(zone => {
+      zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+      zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+      zone.addEventListener('drop', e => {
+        e.preventDefault(); zone.classList.remove('dragover');
+        try { const { id } = JSON.parse(e.dataTransfer.getData('text/plain')); moveTask(id, zone.dataset.col); }
+        catch{}
+      });
+    });
+
+    // Form
+    $('#addForm').addEventListener('submit', e => {
+      e.preventDefault(); const v = $('#taskInput').value.trim(); if(!v) return;
+      addTask(v, 'todo'); e.target.reset(); $('#taskInput').focus();
+    });
+
+    // Clear buttons
+    $$('button[data-clear]').forEach(btn => btn.addEventListener('click', () => {
+      const col = btn.getAttribute('data-clear');
+      if (confirm(`Töm kolumnen "${col}"?`)) { board[col] = []; save(board); render(); }
+    }));
+
+    // Export/Import JSON
+    $('#exportBtn').addEventListener('click', () => {
+      const blob = new Blob([JSON.stringify(board, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = 'kanban.json'; a.click(); URL.revokeObjectURL(url);
+    });
+    $('#importBtn').addEventListener('click', async () => {
+      const input = document.createElement('input'); input.type = 'file'; input.accept = 'application/json';
+      input.onchange = async () => {
+        const file = input.files?.[0]; if(!file) return;
+        try { const text = await file.text(); const data = JSON.parse(text);
+          if(['todo','doing','done'].every(k => Array.isArray(data[k]))){ board = { todo: data.todo, doing: data.doing, done: data.done }; save(board); render(); }
+          else alert('Ogiltigt JSON-format');
+        } catch { alert('Kunde inte läsa filen'); }
+      };
+      input.click();
+    });
+
+    // Init med exempel om tomt
+    if(board.todo.length + board.doing.length + board.done.length === 0){
+      addTask('Välkommen!', 'Dubbelklicka för att redigera.');
+      addTask('Dra mig till Pågår →', '', 'todo');
+      addTask('Klarmarkera', 'Dra till Klart för att markera som färdig', 'doing');
+    } else {
+      render();
+    }
+  </script>
+</body>
+</html>
