@@ -159,6 +159,41 @@
     footer { max-width: 1100px; margin: 0 auto 28px; padding: 0 16px; color: var(--muted); font-size: .9rem; }
     a { color: #93c5fd; }
 
+    /* Undo toast */
+    .undo-toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+      z-index: 1000;
+      animation: slideUp 0.3s ease-out;
+    }
+    @keyframes slideUp {
+      from { transform: translateX(-50%) translateY(100px); opacity: 0; }
+      to { transform: translateX(-50%) translateY(0); opacity: 1; }
+    }
+    .undo-toast button {
+      background: var(--accent);
+      color: white;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+    .undo-toast button:hover {
+      opacity: 0.9;
+    }
+
     /* Mobile responsive */
     @media (max-width: 768px) {
       header {
@@ -615,12 +650,58 @@
       board[column].push(task); save(board); render();
     }
 
+    let undoTimeout = null;
+    let deletedTask = null;
+    let deletedColumn = null;
+
     function removeTask(id){
+      // Save for undo
       ['todo','doing','done'].forEach(col => {
         const i = board[col].findIndex(t => t.id === id);
-        if(i>-1) board[col].splice(i,1);
+        if(i>-1) {
+          deletedTask = board[col][i];
+          deletedColumn = col;
+          board[col].splice(i,1);
+        }
       });
       save(board); render();
+      showUndoToast();
+    }
+
+    function showUndoToast() {
+      // Remove existing toast if any
+      const existing = document.querySelector('.undo-toast');
+      if (existing) existing.remove();
+      if (undoTimeout) clearTimeout(undoTimeout);
+
+      // Create toast
+      const toast = document.createElement('div');
+      toast.className = 'undo-toast';
+      toast.innerHTML = `
+        <span>Uppgift borttagen</span>
+        <button id="undoBtn">Ångra</button>
+      `;
+      document.body.appendChild(toast);
+
+      // Undo button
+      document.getElementById('undoBtn').addEventListener('click', () => {
+        if (deletedTask && deletedColumn) {
+          board[deletedColumn].push(deletedTask);
+          save(board);
+          render();
+          deletedTask = null;
+          deletedColumn = null;
+        }
+        toast.remove();
+        if (undoTimeout) clearTimeout(undoTimeout);
+      });
+
+      // Auto-remove after 5 seconds
+      undoTimeout = setTimeout(() => {
+        toast.remove();
+        deletedTask = null;
+        deletedColumn = null;
+      }, 5000);
     }
 
     function moveTask(id, toCol){
