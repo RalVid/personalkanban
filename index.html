@@ -193,7 +193,16 @@
 </head>
 <body>
   <header>
-    <h1 id="boardTitle">Enkel Kanban</h1>
+    <div style="display: flex; align-items: center; gap: 12px;">
+      <h1 id="boardTitle">Enkel Kanban</h1>
+      <div class="mobile-menu">
+        <button type="button" class="menu-btn" id="mobileMenuBtn" title="Mer">⋮</button>
+        <div class="menu-dropdown" id="menuDropdown">
+          <button type="button" class="menu-item" id="exportBtnMobile">📥 Exportera</button>
+          <button type="button" class="menu-item" id="importBtnMobile">📤 Importera</button>
+        </div>
+      </div>
+    </div>
     <div class="auth-section">
       <div id="syncStatus" class="sync-status" style="display:none;">
         <span class="sync-indicator"></span>
@@ -213,13 +222,6 @@
       <button type="submit" title="Lägg till i 'Att göra'">Lägg till</button>
       <button id="exportBtn" type="button" class="secondary" title="Exportera som JSON">Exportera</button>
       <button id="importBtn" type="button" class="ghost" title="Importera från JSON">Importera</button>
-      <div class="mobile-menu">
-        <button type="button" class="menu-btn" id="mobileMenuBtn" title="Mer">⋮</button>
-        <div class="menu-dropdown" id="menuDropdown">
-          <button type="button" class="menu-item" id="exportBtnMobile">📥 Exportera</button>
-          <button type="button" class="menu-item" id="importBtnMobile">📤 Importera</button>
-        </div>
-      </div>
     </form>
   </header>
 
