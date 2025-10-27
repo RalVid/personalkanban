@@ -285,9 +285,59 @@
         if (syncStatus) {
           syncStatus.style.display = 'flex';
         }
+
+        // Set up auth state listener
+        setupAuthStateListener();
       } else {
         console.log('Firebase not enabled');
       }
+    }
+
+    function setupAuthStateListener() {
+      console.log('Setting up auth state listener...');
+      
+      onAuthStateChanged(auth, async (user) => {
+        console.log('Auth state changed, user:', user);
+        
+        if (user) {
+          // User is signed in
+          console.log('User signed in:', user.displayName || user.email);
+          
+          // Update UI
+          const signInBtn = document.getElementById('signInBtn');
+          const userInfo = document.getElementById('userInfo');
+          const userName = document.getElementById('userName');
+          const userAvatar = document.getElementById('userAvatar');
+          
+          if (signInBtn) signInBtn.style.display = 'none';
+          if (userInfo) userInfo.style.display = 'flex';
+          if (userName) userName.textContent = user.displayName || user.email;
+          if (userAvatar && user.photoURL) userAvatar.src = user.photoURL;
+
+          // Notify main script
+          window.dispatchEvent(new CustomEvent('firebaseAuthChanged', { 
+            detail: { user, signedIn: true } 
+          }));
+
+        } else {
+          // User is signed out
+          console.log('User signed out');
+          
+          // Update UI
+          const signInBtn = document.getElementById('signInBtn');
+          const userInfo = document.getElementById('userInfo');
+          const syncText = document.getElementById('syncText');
+          
+          if (signInBtn) signInBtn.style.display = 'block';
+          if (userInfo) userInfo.style.display = 'none';
+          if (syncText) syncText.textContent = 'Sparad lokalt';
+
+          // Notify main script
+          window.dispatchEvent(new CustomEvent('firebaseAuthChanged', { 
+            detail: { user: null, signedIn: false } 
+          }));
+        }
+      });
     }
   </script>
 
@@ -542,35 +592,17 @@
     // Set page title to match board title
     document.title = loadBoardTitle();
 
-    // Firebase Authentication handlers - moved to module script
-    if (window.firebaseAuth) {
-      console.log('Firebase auth available in main script');
+    // Firebase Authentication handlers - listen for auth changes from module
+    window.addEventListener('firebaseAuthChanged', async (event) => {
+      console.log('Auth changed event received:', event.detail);
+      const { user, signedIn } = event.detail;
 
-      // Sign out button (keep this one here as backup)
-      const signOutBtn = $('#signOutBtn');
-      if (signOutBtn) {
-        signOutBtn.addEventListener('click', () => {
-          if (confirm('Vill du logga ut? Dina uppgifter kommer fortfarande att finnas kvar i molnet.')) {
-            window.firebaseAuth.signOut();
-          }
-        });
-      }
+      if (signedIn && user) {
+        // User signed in
+        currentUserId = user.uid;
 
-      // Listen for auth state changes
-      window.firebaseAuth.onAuthChange(async (user) => {
-        if (user) {
-          // User is signed in
-          currentUserId = user.uid;
-          
-          // Update UI
-          $('#signInBtn').style.display = 'none';
-          $('#userInfo').style.display = 'flex';
-          $('#userName').textContent = user.displayName || user.email;
-          if (user.photoURL) {
-            $('#userAvatar').src = user.photoURL;
-          }
-
-          // Load data from Firestore
+        // Load data from Firestore
+        if (window.firebaseAuth) {
           const cloudData = await window.firebaseAuth.loadFromFirestore(user.uid);
           if (cloudData) {
             // Merge with local data (cloud takes precedence if modified later)
@@ -610,22 +642,13 @@
               setTimeout(() => { isSyncing = false; }, 500);
             }
           });
-
-        } else {
-          // User is signed out
-          currentUserId = null;
-          if (syncUnsubscribe) syncUnsubscribe();
-          
-          // Update UI
-          $('#signInBtn').style.display = 'block';
-          $('#userInfo').style.display = 'none';
-          
-          // Show local-only status
-          const syncText = document.getElementById('syncText');
-          if (syncText) syncText.textContent = 'Sparad lokalt';
         }
-      });
-    }
+      } else {
+        // User signed out
+        currentUserId = null;
+        if (syncUnsubscribe) syncUnsubscribe();
+      }
+    });
   </script>
 </body>
 </html>
