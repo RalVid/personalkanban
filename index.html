@@ -1094,17 +1094,27 @@
           // Listen for real-time updates
           if (syncUnsubscribe) syncUnsubscribe();
           syncUnsubscribe = window.firebaseAuth.listenToChanges(user.uid, (data) => {
-            if (!isSyncing && data.lastModified > (parseInt(localStorage.getItem('lastModified') || '0'))) {
-              isSyncing = true;
-              board = data.board;
-              const newTitle = data.title;
-              $('#boardTitle').textContent = newTitle;
-              document.title = newTitle;
-              localStorage.setItem('kanban-board-title', newTitle);
-              localStorage.setItem(STORAGE_KEY, JSON.stringify(data.board));
-              localStorage.setItem('lastModified', data.lastModified.toString());
-              render();
-              setTimeout(() => { isSyncing = false; }, 500);
+            console.log('Realtime update received:', data);
+            console.log('isSyncing:', isSyncing, 'lastModified:', localStorage.getItem('lastModified'), 'cloud:', data.lastModified);
+            
+            if (!isSyncing) {
+              const localModified = parseInt(localStorage.getItem('lastModified') || '0');
+              // Always render on first snapshot, or if cloud is newer
+              if (!localModified || data.lastModified > localModified) {
+                console.log('Applying realtime update');
+                isSyncing = true;
+                board = data.board;
+                const newTitle = data.title;
+                $('#boardTitle').textContent = newTitle;
+                document.title = newTitle;
+                localStorage.setItem('kanban-board-title', newTitle);
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(data.board));
+                localStorage.setItem('lastModified', data.lastModified.toString());
+                render();
+                setTimeout(() => { isSyncing = false; updateSyncStatus('synced', 'Synkad'); }, 500);
+              } else {
+                console.log('Skipping realtime update - local is newer or same');
+              }
             }
           });
         }
