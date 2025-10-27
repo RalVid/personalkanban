@@ -954,13 +954,15 @@
     });
 
     // Export/Import JSON
-    $('#exportBtn').addEventListener('click', () => {
+    $('#exportBtnMobile')?.addEventListener('click', () => {
       const blob = new Blob([JSON.stringify(board, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url; a.download = 'kanban.json'; a.click(); URL.revokeObjectURL(url);
+      // Close menu
+      $('#menuDropdown').classList.remove('show');
     });
-    $('#importBtn').addEventListener('click', async () => {
+    $('#importBtnMobile')?.addEventListener('click', async () => {
       const input = document.createElement('input'); input.type = 'file'; input.accept = 'application/json';
       input.onchange = async () => {
         const file = input.files?.[0]; if(!file) return;
@@ -970,6 +972,8 @@
         } catch { alert('Kunde inte läsa filen'); }
       };
       input.click();
+      // Close menu
+      $('#menuDropdown').classList.remove('show');
     });
 
     // Render initial board (no example tasks - could overwrite cloud data)
