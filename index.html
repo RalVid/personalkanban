@@ -800,8 +800,15 @@
               await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
             }
           } else {
-            // No cloud data, upload local data
-            await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
+            // No cloud data exists yet
+            // Only upload local data if it's not empty
+            const hasLocalData = board.todo.length > 0 || board.doing.length > 0 || board.done.length > 0;
+            if (hasLocalData) {
+              console.log('No cloud data, uploading local data');
+              await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
+            } else {
+              console.log('No cloud data and no local data - starting fresh');
+            }
           }
 
           // Listen for real-time updates
