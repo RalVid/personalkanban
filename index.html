@@ -45,6 +45,8 @@
     }
     button.secondary { background: var(--accent-2); color: #0b1220; }
     button.ghost { background: transparent; color: var(--muted); box-shadow: none; border: 1px solid var(--border); }
+    /* Hide export/import buttons - use menu instead */
+    #exportBtn, #importBtn { display: none; }
     .sync-status { display: flex; align-items: center; gap: 8px; font-size: .85rem; color: var(--muted); }
     .sync-indicator { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
     .sync-indicator.synced { background: var(--accent); }
@@ -172,10 +174,6 @@
       button {
         width: 100%;
         padding: 12px 14px;
-      }
-      /* Hide export/import buttons on mobile */
-      #exportBtn, #importBtn {
-        display: none;
       }
       main {
         grid-template-columns: 1fr;
