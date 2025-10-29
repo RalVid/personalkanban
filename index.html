@@ -231,6 +231,44 @@
       color: white;
     }
 
+    /* Due date styling */
+    .due-date {
+      color: var(--muted);
+      font-size: .75rem;
+      margin-top: 4px;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .due-badge {
+      display: inline-block;
+      padding: 2px 6px;
+      border-radius: 4px;
+      font-size: .7rem;
+      font-weight: 600;
+      margin-left: 4px;
+    }
+    .due-today {
+      background: rgba(251, 191, 36, 0.2);
+      color: #fbbf24;
+    }
+    .due-soon {
+      background: rgba(251, 191, 36, 0.15);
+      color: #fbbf24;
+    }
+    .overdue {
+      background: rgba(239, 68, 68, 0.2);
+      color: #fca5a5;
+    }
+    .card.overdue {
+      border-color: #7f1d1d;
+      background: linear-gradient(135deg, rgba(127, 29, 29, 0.1), var(--card));
+    }
+    .card.due-today {
+      border-color: #78350f;
+      background: linear-gradient(135deg, rgba(120, 53, 15, 0.1), var(--card));
+    }
+
     footer { max-width: 1100px; margin: 0 auto 28px; padding: 0 16px; color: var(--muted); font-size: .9rem; }
     a { color: #93c5fd; }
 
@@ -749,6 +787,60 @@
 
     function uid(){ return Math.random().toString(36).slice(2,9); }
 
+    // Notification functions
+    async function requestNotificationPermission() {
+      if ('Notification' in window && Notification.permission === 'default') {
+        await Notification.requestPermission();
+      }
+    }
+
+    function checkOverdueTasks() {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      let overdueCount = 0;
+      let dueTodayCount = 0;
+      
+      ['todo', 'doing'].forEach(col => {
+        board[col].forEach(task => {
+          if (task.dueDate) {
+            const dueDate = new Date(task.dueDate);
+            dueDate.setHours(0, 0, 0, 0);
+            const diffDays = Math.ceil((dueDate - today) / (1000 * 60 * 60 * 24));
+            
+            if (diffDays < 0) overdueCount++;
+            else if (diffDays === 0) dueTodayCount++;
+          }
+        });
+      });
+      
+      if ('Notification' in window && Notification.permission === 'granted') {
+        if (overdueCount > 0) {
+          new Notification('Försenade uppgifter', {
+            body: `Du har ${overdueCount} försenad${overdueCount > 1 ? 'e' : ''} uppgift${overdueCount > 1 ? 'er' : ''}!`,
+            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="75" font-size="75">⚠️</text></svg>',
+            tag: 'overdue-tasks'
+          });
+        } else if (dueTodayCount > 0) {
+          new Notification('Uppgifter att göra idag', {
+            body: `Du har ${dueTodayCount} uppgift${dueTodayCount > 1 ? 'er' : ''} som ska slutföras idag.`,
+            icon: 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="75" font-size="75">📅</text></svg>',
+            tag: 'due-today-tasks'
+          });
+        }
+      }
+    }
+
+    // Check for overdue tasks on load
+    setTimeout(() => {
+      requestNotificationPermission().then(() => {
+        checkOverdueTasks();
+      });
+    }, 2000);
+
+    // Check every hour for overdue tasks
+    setInterval(checkOverdueTasks, 60 * 60 * 1000);
+
     function render(){
       ['todo','doing','done'].forEach(col => {
         const zone = `.dropzone[data-col="${col}"]`;
@@ -782,7 +874,36 @@
       meta.textContent = new Date(task.created).toLocaleString();
 
       const left = document.createElement('div');
-      left.appendChild(headline); left.appendChild(text); left.appendChild(meta);
+      left.appendChild(headline); 
+      left.appendChild(text); 
+      
+      // Add due date display
+      if (task.dueDate) {
+        const dueDate = document.createElement('div');
+        dueDate.className = 'due-date';
+        const dueDateObj = new Date(task.dueDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dueDateTime = new Date(dueDateObj);
+        dueDateTime.setHours(0, 0, 0, 0);
+        const diffDays = Math.ceil((dueDateTime - today) / (1000 * 60 * 60 * 24));
+        
+        let badgeHtml = '';
+        if (diffDays < 0) {
+          badgeHtml = '<span class="due-badge overdue">Försenad</span>';
+          el.classList.add('overdue');
+        } else if (diffDays === 0) {
+          badgeHtml = '<span class="due-badge due-today">Idag</span>';
+          el.classList.add('due-today');
+        } else if (diffDays <= 3) {
+          badgeHtml = '<span class="due-badge due-soon">Snart</span>';
+        }
+        
+        dueDate.innerHTML = `📅 ${dueDateObj.toLocaleDateString('sv-SE')}${badgeHtml}`;
+        left.appendChild(dueDate);
+      }
+      
+      left.appendChild(meta);
 
       const menuContainer = document.createElement('div');
       menuContainer.className = 'card-menu';
@@ -848,6 +969,7 @@
         <form class="dialog-form" id="dialogForm">
           <input type="text" id="dialogHeadline" placeholder="Rubrik (obligatorisk)" required autofocus />
           <textarea id="dialogText" placeholder="Beskrivning (valfri)"></textarea>
+          <input type="date" id="dialogDueDate" placeholder="Slutdatum (valfritt)" />
           <div class="dialog-buttons">
             <button type="button" class="ghost" id="dialogCancel">Avbryt</button>
             <button type="submit">Spara</button>
@@ -861,6 +983,7 @@
       // Populate with existing values
       $('#dialogHeadline').value = task.headline || task.text || '';
       $('#dialogText').value = task.text || '';
+      $('#dialogDueDate').value = task.dueDate || '';
       
       // Focus headline input
       setTimeout(() => $('#dialogHeadline').focus(), 100);
@@ -882,10 +1005,12 @@
         e.preventDefault();
         const headline = $('#dialogHeadline').value.trim();
         const text = $('#dialogText').value.trim();
+        const dueDate = $('#dialogDueDate').value;
         if (!headline) return;
         
         task.headline = headline;
         task.text = text;
+        task.dueDate = dueDate;
         save(board);
         render();
         overlay.remove();
@@ -901,8 +1026,8 @@
       document.addEventListener('keydown', escapeHandler);
     }
 
-    function addTask(headline, text='', column='todo'){
-      const task = { id: uid(), headline, text, created: Date.now() };
+    function addTask(headline, text='', column='todo', dueDate=''){
+      const task = { id: uid(), headline, text, dueDate, created: Date.now() };
       board[column].push(task); save(board); render();
     }
 
@@ -999,6 +1124,7 @@
         <form class="dialog-form" id="dialogForm">
           <input type="text" id="dialogHeadline" placeholder="Rubrik (obligatorisk)" required autofocus />
           <textarea id="dialogText" placeholder="Beskrivning (valfri)"></textarea>
+          <input type="date" id="dialogDueDate" placeholder="Slutdatum (valfritt)" />
           <div class="dialog-buttons">
             <button type="button" class="ghost" id="dialogCancel">Avbryt</button>
             <button type="submit">Lägg till</button>
@@ -1029,9 +1155,10 @@
         e.preventDefault();
         const headline = $('#dialogHeadline').value.trim();
         const text = $('#dialogText').value.trim();
+        const dueDate = $('#dialogDueDate').value;
         if (!headline) return;
         
-        addTask(headline, text, 'todo');
+        addTask(headline, text, 'todo', dueDate);
         overlay.remove();
       });
       
