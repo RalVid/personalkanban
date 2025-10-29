@@ -871,7 +871,7 @@
 
       const meta = document.createElement('div');
       meta.className = 'meta';
-      meta.textContent = new Date(task.created).toLocaleString();
+      meta.textContent = '🕐 Skapad: ' + new Date(task.created).toLocaleString('sv-SE');
 
       const left = document.createElement('div');
       left.appendChild(headline); 
@@ -899,7 +899,7 @@
           badgeHtml = '<span class="due-badge due-soon">Snart</span>';
         }
         
-        dueDate.innerHTML = `📅 ${dueDateObj.toLocaleDateString('sv-SE')}${badgeHtml}`;
+        dueDate.innerHTML = `📅 Slutdatum: ${dueDateObj.toLocaleDateString('sv-SE')}${badgeHtml}`;
         left.appendChild(dueDate);
       }
       
