@@ -163,6 +163,74 @@
     .danger { color: #fecaca; border-color: #7f1d1d; }
     .danger:hover { color: white; border-color: #991b1b; background: rgba(239,68,68,.12); }
 
+    /* Card menu */
+    .card-menu {
+      position: relative;
+    }
+    .card-menu-btn {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 4px 8px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 1rem;
+      line-height: 1;
+    }
+    .card-menu-btn:hover {
+      color: var(--text);
+      border-color: #334155;
+      background: var(--border);
+    }
+    .card-menu-dropdown {
+      display: none;
+      position: absolute;
+      right: 0;
+      top: 100%;
+      margin-top: 4px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+      min-width: 120px;
+      z-index: 100;
+    }
+    .card-menu-dropdown.show {
+      display: block;
+    }
+    .card-menu-item {
+      width: 100%;
+      background: transparent;
+      color: var(--text);
+      border: none;
+      padding: 10px 14px;
+      text-align: left;
+      cursor: pointer;
+      border-radius: 0;
+      box-shadow: none;
+      font-weight: 400;
+      font-size: 0.9rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .card-menu-item:first-child {
+      border-radius: 8px 8px 0 0;
+    }
+    .card-menu-item:last-child {
+      border-radius: 0 0 8px 8px;
+    }
+    .card-menu-item:hover {
+      background: var(--border);
+    }
+    .card-menu-item.danger {
+      color: #fecaca;
+    }
+    .card-menu-item.danger:hover {
+      background: rgba(239,68,68,.12);
+      color: white;
+    }
+
     footer { max-width: 1100px; margin: 0 auto 28px; padding: 0 16px; color: var(--muted); font-size: .9rem; }
     a { color: #93c5fd; }
 
@@ -406,7 +474,7 @@
   </main>
 
   <footer>
-    Tips: Dra & släpp kort mellan kolumner. Dubbelklicka på ett kort för att redigera. Allt sparas automatiskt lokalt och synkas till molnet när du är inloggad.
+    Tips: Dra & släpp kort mellan kolumner. Klicka på ⋮ på ett kort för att redigera eller ta bort. Allt sparas automatiskt lokalt och synkas till molnet när du är inloggad.
   </footer>
 
 
@@ -716,62 +784,121 @@
       const left = document.createElement('div');
       left.appendChild(headline); left.appendChild(text); left.appendChild(meta);
 
-      const del = document.createElement('button');
-      del.className = 'icon-btn danger';
-      del.innerText = 'Ta bort';
-      del.title = 'Ta bort uppgift';
-      del.addEventListener('click', () => removeTask(task.id));
+      const menuContainer = document.createElement('div');
+      menuContainer.className = 'card-menu';
+
+      const menuBtn = document.createElement('button');
+      menuBtn.className = 'card-menu-btn';
+      menuBtn.innerText = '⋮';
+      menuBtn.title = 'Åtgärder';
+      
+      const menuDropdown = document.createElement('div');
+      menuDropdown.className = 'card-menu-dropdown';
+
+      const editBtn = document.createElement('button');
+      editBtn.className = 'card-menu-item';
+      editBtn.innerHTML = '✏️ Redigera';
+      editBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menuDropdown.classList.remove('show');
+        showEditTaskDialog(task);
+      });
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'card-menu-item danger';
+      deleteBtn.innerHTML = '🗑️ Ta bort';
+      deleteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        menuDropdown.classList.remove('show');
+        removeTask(task.id);
+      });
+
+      menuDropdown.appendChild(editBtn);
+      menuDropdown.appendChild(deleteBtn);
+      menuContainer.appendChild(menuBtn);
+      menuContainer.appendChild(menuDropdown);
+
+      menuBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        document.querySelectorAll('.card-menu-dropdown').forEach(d => {
+          if (d !== menuDropdown) d.classList.remove('show');
+        });
+        menuDropdown.classList.toggle('show');
+      });
 
       const actions = document.createElement('div');
       actions.className = 'actions';
-      actions.appendChild(del);
+      actions.appendChild(menuContainer);
 
       el.appendChild(left); el.appendChild(actions);
-
-      // Inline-redigering
-      el.addEventListener('dblclick', () => startEdit(el, task));
 
       return el;
     }
 
-    function startEdit(cardEl, task){
-      const left = cardEl.querySelector('div');
-      const currentHeadline = task.headline || task.text || '';
-      const currentText = task.text || '';
+    function showEditTaskDialog(task) {
+      // Create overlay
+      const overlay = document.createElement('div');
+      overlay.className = 'dialog-overlay';
       
-      const form = document.createElement('div');
-      const headlineInput = document.createElement('input');
-      headlineInput.type = 'text';
-      headlineInput.value = currentHeadline;
-      headlineInput.placeholder = 'Rubrik';
-      headlineInput.style.width = '100%'; headlineInput.style.background = 'transparent'; 
-      headlineInput.style.color = 'inherit'; headlineInput.style.border = '1px solid var(--border)';
-      headlineInput.style.borderRadius = '8px'; headlineInput.style.padding = '6px';
-      headlineInput.style.marginBottom = '6px'; headlineInput.style.fontWeight = '700';
+      // Create dialog
+      const dialog = document.createElement('div');
+      dialog.className = 'dialog';
+      dialog.innerHTML = `
+        <h2>Redigera uppgift</h2>
+        <form class="dialog-form" id="dialogForm">
+          <input type="text" id="dialogHeadline" placeholder="Rubrik (obligatorisk)" required autofocus />
+          <textarea id="dialogText" placeholder="Beskrivning (valfri)"></textarea>
+          <div class="dialog-buttons">
+            <button type="button" class="ghost" id="dialogCancel">Avbryt</button>
+            <button type="submit">Spara</button>
+          </div>
+        </form>
+      `;
       
-      const textInput = document.createElement('textarea');
-      textInput.value = currentText;
-      textInput.placeholder = 'Beskrivning (valfri)';
-      textInput.rows = Math.min(4, Math.max(2, currentText.split('\n').length));
-      textInput.style.width = '100%'; textInput.style.background = 'transparent'; 
-      textInput.style.color = 'inherit'; textInput.style.border = '1px solid var(--border)';
-      textInput.style.borderRadius = '8px'; textInput.style.padding = '6px';
+      overlay.appendChild(dialog);
+      document.body.appendChild(overlay);
       
-      form.appendChild(headlineInput);
-      form.appendChild(textInput);
-      left.innerHTML = '';
-      left.appendChild(form);
-      headlineInput.focus();
+      // Populate with existing values
+      $('#dialogHeadline').value = task.headline || task.text || '';
+      $('#dialogText').value = task.text || '';
       
-      const finish = () => {
-        const h = headlineInput.value.trim();
-        const t = textInput.value.trim();
-        if(h){ task.headline = h; task.text = t; save(board); render(); }
-        else { removeTask(task.id); }
+      // Focus headline input
+      setTimeout(() => $('#dialogHeadline').focus(), 100);
+      
+      // Cancel button
+      $('#dialogCancel').addEventListener('click', () => {
+        overlay.remove();
+      });
+      
+      // Click outside to close
+      overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) {
+          overlay.remove();
+        }
+      });
+      
+      // Submit form
+      $('#dialogForm').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const headline = $('#dialogHeadline').value.trim();
+        const text = $('#dialogText').value.trim();
+        if (!headline) return;
+        
+        task.headline = headline;
+        task.text = text;
+        save(board);
+        render();
+        overlay.remove();
+      });
+      
+      // Escape key to close
+      const escapeHandler = (e) => {
+        if (e.key === 'Escape') {
+          overlay.remove();
+          document.removeEventListener('keydown', escapeHandler);
+        }
       };
-      headlineInput.addEventListener('blur', (e) => { if(!form.contains(e.relatedTarget)) finish(); });
-      textInput.addEventListener('blur', (e) => { if(!form.contains(e.relatedTarget)) finish(); });
-      textInput.addEventListener('keydown', e => { if(e.key==='Enter' && (e.ctrlKey||e.metaKey)) finish(); });
+      document.addEventListener('keydown', escapeHandler);
     }
 
     function addTask(headline, text='', column='todo'){
@@ -937,6 +1064,15 @@
         e.stopPropagation();
       });
     }
+
+    // Close card menus when clicking outside
+    document.addEventListener('click', (e) => {
+      if (!e.target.closest('.card-menu')) {
+        document.querySelectorAll('.card-menu-dropdown').forEach(menu => {
+          menu.classList.remove('show');
+        });
+      }
+    });
 
     // Mobile export button
     $('#exportBtnMobile')?.addEventListener('click', () => {
