@@ -873,11 +873,11 @@
         const zone = `.dropzone[data-col="${col}"]`;
         const container = document.querySelector(zone);
         container.innerHTML = '';
-        board[col].forEach(task => container.appendChild(renderCard(task)));
+        board[col].forEach(task => container.appendChild(renderCard(task, col)));
       });
     }
 
-    function renderCard(task){
+    function renderCard(task, column){
       const el = document.createElement('article');
       el.className = 'card';
       el.setAttribute('draggable', 'true');
@@ -952,6 +952,51 @@
         showEditTaskDialog(task);
       });
 
+      menuDropdown.appendChild(editBtn);
+
+      // Add "Move to" options based on current column
+      if (column === 'todo') {
+        const moveToDoingBtn = document.createElement('button');
+        moveToDoingBtn.className = 'card-menu-item';
+        moveToDoingBtn.innerHTML = '▶️ Flytta till Pågår';
+        moveToDoingBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          menuDropdown.classList.remove('show');
+          moveTask(task.id, 'doing');
+        });
+        menuDropdown.appendChild(moveToDoingBtn);
+      } else if (column === 'doing') {
+        const moveToDoneBtn = document.createElement('button');
+        moveToDoneBtn.className = 'card-menu-item';
+        moveToDoneBtn.innerHTML = '✅ Flytta till Klart';
+        moveToDoneBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          menuDropdown.classList.remove('show');
+          moveTask(task.id, 'done');
+        });
+        menuDropdown.appendChild(moveToDoneBtn);
+        
+        const moveToTodoBtn = document.createElement('button');
+        moveToTodoBtn.className = 'card-menu-item';
+        moveToTodoBtn.innerHTML = '◀️ Flytta till Att göra';
+        moveToTodoBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          menuDropdown.classList.remove('show');
+          moveTask(task.id, 'todo');
+        });
+        menuDropdown.appendChild(moveToTodoBtn);
+      } else if (column === 'done') {
+        const moveToDoingBtn = document.createElement('button');
+        moveToDoingBtn.className = 'card-menu-item';
+        moveToDoingBtn.innerHTML = '◀️ Flytta till Pågår';
+        moveToDoingBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          menuDropdown.classList.remove('show');
+          moveTask(task.id, 'doing');
+        });
+        menuDropdown.appendChild(moveToDoingBtn);
+      }
+
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'card-menu-item danger';
       deleteBtn.innerHTML = '🗑️ Ta bort';
@@ -961,7 +1006,6 @@
         removeTask(task.id);
       });
 
-      menuDropdown.appendChild(editBtn);
       menuDropdown.appendChild(deleteBtn);
       menuContainer.appendChild(menuBtn);
       menuContainer.appendChild(menuDropdown);
