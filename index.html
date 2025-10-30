@@ -920,14 +920,16 @@
         const diffDays = Math.ceil((dueDateTime - today) / (1000 * 60 * 60 * 24));
         
         let badgeHtml = '';
-        if (diffDays < 0) {
-          badgeHtml = '<span class="due-badge overdue">Försenad</span>';
-          el.classList.add('overdue');
-        } else if (diffDays === 0) {
-          badgeHtml = '<span class="due-badge due-today">Idag</span>';
-          el.classList.add('due-today');
-        } else if (diffDays <= 3) {
-          badgeHtml = '<span class="due-badge due-soon">Snart</span>';
+        if (column !== 'done') {
+          if (diffDays < 0) {
+            badgeHtml = '<span class="due-badge overdue">Försenad</span>';
+            el.classList.add('overdue');
+          } else if (diffDays === 0) {
+            badgeHtml = '<span class="due-badge due-today">Idag</span>';
+            el.classList.add('due-today');
+          } else if (diffDays <= 3) {
+            badgeHtml = '<span class="due-badge due-soon">Snart</span>';
+          }
         }
         
         dueDate.innerHTML = `📅 Slutdatum: ${dueDateObj.toLocaleDateString('sv-SE')}${badgeHtml}`;
