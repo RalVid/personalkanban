@@ -902,7 +902,7 @@
 
       const meta = document.createElement('div');
       meta.className = 'meta';
-      meta.textContent = '🕐 Skapad: ' + new Date(task.created).toLocaleString('sv-SE');
+      meta.textContent = '🕐 Skapad: ' + new Date(task.created).toLocaleDateString('sv-SE');
 
       const left = document.createElement('div');
       left.appendChild(headline); 
