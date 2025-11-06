@@ -976,6 +976,16 @@
           moveTask(task.id, 'doing');
         });
         menuDropdown.appendChild(moveToDoingBtn);
+        
+        const moveToDoneBtn = document.createElement('button');
+        moveToDoneBtn.className = 'card-menu-item';
+        moveToDoneBtn.innerHTML = '✅ Flytta till Klart';
+        moveToDoneBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          menuDropdown.classList.remove('show');
+          moveTask(task.id, 'done');
+        });
+        menuDropdown.appendChild(moveToDoneBtn);
       } else if (column === 'doing') {
         const moveToDoneBtn = document.createElement('button');
         moveToDoneBtn.className = 'card-menu-item';
