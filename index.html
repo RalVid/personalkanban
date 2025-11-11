@@ -877,12 +877,44 @@
     // Check every hour for overdue tasks
     setInterval(checkOverdueTasks, 60 * 60 * 1000);
 
+    function cleanupOldDeletedTasks() {
+      const THIRTY_DAYS = 30 * 24 * 60 * 60 * 1000;
+      const now = Date.now();
+      let cleaned = false;
+      
+      ['todo', 'doing', 'done'].forEach(col => {
+        const originalLength = board[col].length;
+        board[col] = board[col].filter(task => {
+          if (task.deleted && task.deletedAt) {
+            return (now - task.deletedAt) < THIRTY_DAYS;
+          }
+          return true;
+        });
+        if (board[col].length < originalLength) {
+          cleaned = true;
+        }
+      });
+      
+      if (cleaned) {
+        console.log('Cleaned up old deleted tasks');
+        save(board);
+      }
+    }
+
+    // Cleanup deleted tasks on load
+    setTimeout(cleanupOldDeletedTasks, 3000);
+    
+    // Cleanup old deleted tasks daily
+    setInterval(cleanupOldDeletedTasks, 24 * 60 * 60 * 1000);
+
     function render(){
       ['todo','doing','done'].forEach(col => {
         const zone = `.dropzone[data-col="${col}"]`;
         const container = document.querySelector(zone);
         container.innerHTML = '';
-        board[col].forEach(task => container.appendChild(renderCard(task, col)));
+        board[col]
+          .filter(task => !task.deleted)
+          .forEach(task => container.appendChild(renderCard(task, col)));
       });
     }
 
@@ -1129,13 +1161,14 @@
     let deletedColumn = null;
 
     function removeTask(id){
-      // Save for undo
+      // Mark as deleted instead of removing (tombstone pattern)
       ['todo','doing','done'].forEach(col => {
-        const i = board[col].findIndex(t => t.id === id);
-        if(i>-1) {
-          deletedTask = board[col][i];
+        const task = board[col].find(t => t.id === id);
+        if(task) {
+          deletedTask = { ...task };
           deletedColumn = col;
-          board[col].splice(i,1);
+          task.deleted = true;
+          task.deletedAt = Date.now();
         }
       });
       save(board); render();
@@ -1160,7 +1193,11 @@
       // Undo button
       document.getElementById('undoBtn').addEventListener('click', () => {
         if (deletedTask && deletedColumn) {
-          board[deletedColumn].push(deletedTask);
+          const task = board[deletedColumn].find(t => t.id === deletedTask.id);
+          if (task) {
+            delete task.deleted;
+            delete task.deletedAt;
+          }
           save(board);
           render();
           deletedTask = null;
@@ -1411,7 +1448,9 @@
           if (cloudData) {
             // Cloud data exists - merge with local data
             const localModified = parseInt(localStorage.getItem('lastModified') || '0');
-            const hasLocalData = board.todo.length > 0 || board.doing.length > 0 || board.done.length > 0;
+            const hasLocalData = board.todo.filter(t => !t.deleted).length > 0 || 
+                                board.doing.filter(t => !t.deleted).length > 0 || 
+                                board.done.filter(t => !t.deleted).length > 0;
             
             if (!hasLocalData && !localModified) {
               // No local data at all - use cloud data
@@ -1430,29 +1469,33 @@
               // Cloud is newer but we have local data - merge them
               console.log('Cloud data is newer, merging with local data');
               
-              // Create a map of existing tasks by ID from cloud
-              const cloudTaskIds = new Set();
+              // Create maps of tasks by ID from both cloud and local
+              const cloudTaskMap = new Map();
               ['todo', 'doing', 'done'].forEach(col => {
-                cloudData.board[col].forEach(task => cloudTaskIds.add(task.id));
+                cloudData.board[col].forEach(task => cloudTaskMap.set(task.id, { task, col }));
               });
               
-              // Merge: Keep all cloud tasks + add local tasks that don't exist in cloud
+              const localTaskMap = new Map();
+              ['todo', 'doing', 'done'].forEach(col => {
+                board[col].forEach(task => localTaskMap.set(task.id, { task, col }));
+              });
+              
+              // Merge: Start with cloud tasks, add local new tasks, respect deletions
               const merged = { todo: [], doing: [], done: [] };
               
-              // First, add all cloud tasks
+              // Add all cloud tasks (including deleted ones for sync)
               ['todo', 'doing', 'done'].forEach(col => {
-                merged[col] = [...cloudData.board[col]];
+                cloudData.board[col].forEach(task => {
+                  merged[col].push({ ...task });
+                });
               });
               
-              // Then, add local tasks that are NOT in cloud (new offline tasks)
-              ['todo', 'doing', 'done'].forEach(col => {
-                board[col].forEach(task => {
-                  if (!cloudTaskIds.has(task.id)) {
-                    // This is a new task created offline, add it
-                    merged[col].push(task);
-                    console.log(`Adding new offline task: ${task.headline}`);
-                  }
-                });
+              // Add local tasks that don't exist in cloud (new offline tasks)
+              localTaskMap.forEach(({ task, col }, id) => {
+                if (!cloudTaskMap.has(id)) {
+                  console.log(`Adding new offline task: ${task.headline}`);
+                  merged[col].push({ ...task });
+                }
               });
               
               isApplyingRemoteUpdate = true;
@@ -1486,29 +1529,38 @@
               // Local has changes - merge intelligently
               console.log('Merging local and cloud data');
               
-              // Create a map of existing tasks by ID from cloud
-              const cloudTaskIds = new Set();
+              // Create maps of tasks by ID from both cloud and local
+              const cloudTaskMap = new Map();
               ['todo', 'doing', 'done'].forEach(col => {
-                cloudData.board[col].forEach(task => cloudTaskIds.add(task.id));
+                cloudData.board[col].forEach(task => cloudTaskMap.set(task.id, { task, col }));
               });
               
-              // Merge: Keep all cloud tasks + add local tasks that don't exist in cloud
+              const localTaskMap = new Map();
+              ['todo', 'doing', 'done'].forEach(col => {
+                board[col].forEach(task => localTaskMap.set(task.id, { task, col }));
+              });
+              
+              // Merge: Prefer local changes for existing tasks, add cloud tasks, handle deletions
               const merged = { todo: [], doing: [], done: [] };
               
               // First, add all cloud tasks
-              ['todo', 'doing', 'done'].forEach(col => {
-                merged[col] = [...cloudData.board[col]];
+              cloudTaskMap.forEach(({ task, col }, id) => {
+                const localData = localTaskMap.get(id);
+                if (localData) {
+                  // Task exists in both - prefer local version (more recent)
+                  merged[localData.col].push({ ...localData.task });
+                } else {
+                  // Task only in cloud - add it
+                  merged[col].push({ ...task });
+                }
               });
               
-              // Then, add local tasks that are NOT in cloud (new tasks)
-              ['todo', 'doing', 'done'].forEach(col => {
-                board[col].forEach(task => {
-                  if (!cloudTaskIds.has(task.id)) {
-                    // This is a new task created locally, add it
-                    merged[col].push(task);
-                    console.log(`Adding new local task: ${task.headline}`);
-                  }
-                });
+              // Then, add local tasks that don't exist in cloud (new tasks)
+              localTaskMap.forEach(({ task, col }, id) => {
+                if (!cloudTaskMap.has(id)) {
+                  console.log(`Adding new local task: ${task.headline}`);
+                  merged[col].push({ ...task });
+                }
               });
               
               isApplyingRemoteUpdate = true;
@@ -1536,7 +1588,9 @@
             // No cloud data exists yet
             console.log('No cloud data found');
             // Only upload local data if it's not empty
-            const hasLocalData = board.todo.length > 0 || board.doing.length > 0 || board.done.length > 0;
+            const hasLocalData = board.todo.filter(t => !t.deleted).length > 0 || 
+                                board.doing.filter(t => !t.deleted).length > 0 || 
+                                board.done.filter(t => !t.deleted).length > 0;
             if (hasLocalData) {
               console.log('No cloud data, uploading local data');
               await window.firebaseAuth.syncToFirestore(user.uid, loadBoardTitle(), board);
