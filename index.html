@@ -1358,7 +1358,16 @@
     // Clear buttons
     $$('button[data-clear]').forEach(btn => btn.addEventListener('click', () => {
       const col = btn.getAttribute('data-clear');
-      if (confirm(`Töm kolumnen "${col}"?`)) { board[col] = []; save(board); render(); }
+      if (confirm(`Töm kolumnen "${col}"?`)) { 
+        board[col].forEach(task => {
+          if (!task.deleted) {
+            task.deleted = true;
+            task.deletedAt = Date.now();
+          }
+        });
+        save(board); 
+        render(); 
+      }
     }));
 
     // Sign out button
