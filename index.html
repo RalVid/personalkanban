@@ -778,15 +778,49 @@
     let syncUnsubscribe = null;
     let syncTimeout = null;
 
+    function uid(){ return Math.random().toString(36).slice(2,9); }
+
+    function normalizeTask(task) {
+      if (!task || typeof task !== 'object') return null;
+      const normalized = { ...task };
+      if (typeof normalized.id !== 'string' || !normalized.id.trim()) {
+        normalized.id = uid();
+      }
+      if (typeof normalized.headline !== 'string') {
+        normalized.headline = '';
+      }
+      if (typeof normalized.text !== 'string') {
+        normalized.text = '';
+      }
+      if (typeof normalized.created !== 'number') {
+        normalized.created = Date.now();
+      }
+      if (!('dueDate' in normalized)) {
+        normalized.dueDate = '';
+      }
+      return normalized;
+    }
+
+    function normalizeBoard(data) {
+      const columns = ['todo', 'doing', 'done'];
+      const source = (data && typeof data === 'object') ? data : {};
+      const normalized = { todo: [], doing: [], done: [] };
+      columns.forEach(col => {
+        const items = Array.isArray(source[col]) ? source[col] : [];
+        normalized[col] = items.map(normalizeTask).filter(Boolean);
+      });
+      return normalized;
+    }
+
     /** @returns {Board} */
     function load(){
       try {
         const raw = localStorage.getItem(STORAGE_KEY);
-        if (!raw) return { todo: [], doing: [], done: [] };
+        if (!raw) return normalizeBoard({});
         const data = JSON.parse(raw);
-        return { todo: data.todo||[], doing: data.doing||[], done: data.done||[] };
+        return normalizeBoard(data);
       } catch(e){
-        console.warn('Kunde inte läsa lagring', e); return { todo: [], doing: [], done: [] };
+        console.warn('Kunde inte läsa lagring', e); return normalizeBoard({});
       }
     }
     /** @param {Board} data */
@@ -835,8 +869,6 @@
     /** @type {Board} */
     let board = load();
     let draggedTaskId = null;
-
-    function uid(){ return Math.random().toString(36).slice(2,9); }
 
     // Notification functions
     async function requestNotificationPermission() {
@@ -1426,7 +1458,7 @@
       input.onchange = async () => {
         const file = input.files?.[0]; if(!file) return;
         try { const text = await file.text(); const data = JSON.parse(text);
-          if(['todo','doing','done'].every(k => Array.isArray(data[k]))){ board = { todo: data.todo, doing: data.doing, done: data.done }; save(board); render(); }
+          if(['todo','doing','done'].every(k => Array.isArray(data[k]))){ board = normalizeBoard(data); save(board); render(); }
           else alert('Ogiltigt JSON-format');
         } catch { alert('Kunde inte läsa filen'); }
       };
@@ -1503,7 +1535,7 @@
       input.onchange = async () => {
         const file = input.files?.[0]; if(!file) return;
         try { const text = await file.text(); const data = JSON.parse(text);
-          if(['todo','doing','done'].every(k => Array.isArray(data[k]))){ board = { todo: data.todo, doing: data.doing, done: data.done }; save(board); render(); }
+          if(['todo','doing','done'].every(k => Array.isArray(data[k]))){ board = normalizeBoard(data); save(board); render(); }
           else alert('Ogiltigt JSON-format');
         } catch { alert('Kunde inte läsa filen'); }
       };
@@ -1544,7 +1576,7 @@
               // No local data at all - use cloud data
               console.log('No local data, using cloud data');
               isApplyingRemoteUpdate = true;
-              board = cloudData.board;
+              board = normalizeBoard(cloudData.board);
               const newTitle = cloudData.title;
               $('#boardTitle').textContent = newTitle;
               document.title = newTitle;
@@ -1558,14 +1590,18 @@
               console.log('Cloud data is newer, merging with local data');
               
               // Create maps of tasks by ID from both cloud and local
+              const cloudBoard = normalizeBoard(cloudData.board);
+              const localBoard = normalizeBoard(board);
+              board = localBoard;
+
               const cloudTaskMap = new Map();
               ['todo', 'doing', 'done'].forEach(col => {
-                cloudData.board[col].forEach(task => cloudTaskMap.set(task.id, { task, col }));
+                cloudBoard[col].forEach(task => cloudTaskMap.set(task.id, { task, col }));
               });
-              
+
               const localTaskMap = new Map();
               ['todo', 'doing', 'done'].forEach(col => {
-                board[col].forEach(task => localTaskMap.set(task.id, { task, col }));
+                localBoard[col].forEach(task => localTaskMap.set(task.id, { task, col }));
               });
               
               // Merge: Start with cloud tasks, add local new tasks, respect deletions
@@ -1573,7 +1609,7 @@
               
               // Add all cloud tasks (including deleted ones for sync)
               ['todo', 'doing', 'done'].forEach(col => {
-                cloudData.board[col].forEach(task => {
+                cloudBoard[col].forEach(task => {
                   merged[col].push({ ...task });
                 });
               });
@@ -1604,7 +1640,7 @@
               // Cloud is newer and no local data - use cloud data
               console.log('Cloud data is newer, using cloud data');
               isApplyingRemoteUpdate = true;
-              board = cloudData.board;
+              board = normalizeBoard(cloudData.board);
               const newTitle = cloudData.title;
               $('#boardTitle').textContent = newTitle;
               document.title = newTitle;
@@ -1618,12 +1654,16 @@
               console.log('Merging local and cloud data');
               
               // Merge while preserving the user's local ordering and column placement.
+              const localBoard = normalizeBoard(board);
+              const cloudBoard = normalizeBoard(cloudData.board);
+              board = localBoard;
+
               const merged = { todo: [], doing: [], done: [] };
               const seenIds = new Set();
 
               // 1) Start with the local board so any reordering the user did offline wins.
               ['todo', 'doing', 'done'].forEach(col => {
-                board[col].forEach(task => {
+                localBoard[col].forEach(task => {
                   merged[col].push({ ...task });
                   seenIds.add(task.id);
                 });
@@ -1631,7 +1671,7 @@
 
               // 2) Append cloud-only tasks in their original order so nothing goes missing.
               ['todo', 'doing', 'done'].forEach(col => {
-                cloudData.board[col].forEach(task => {
+                cloudBoard[col].forEach(task => {
                   if (!seenIds.has(task.id)) {
                     merged[col].push({ ...task });
                     seenIds.add(task.id);
@@ -1691,7 +1731,7 @@
               if (!localModified || data.lastModified > localModified) {
                 console.log('Applying realtime update');
                 isApplyingRemoteUpdate = true;
-                board = data.board;
+                board = normalizeBoard(data.board);
                 const newTitle = data.title;
                 $('#boardTitle').textContent = newTitle;
                 document.title = newTitle;
