@@ -1617,40 +1617,28 @@
               // Local has changes - merge intelligently
               console.log('Merging local and cloud data');
               
-              // Create maps of tasks by ID from both cloud and local
-              const cloudTaskMap = new Map();
-              ['todo', 'doing', 'done'].forEach(col => {
-                cloudData.board[col].forEach(task => cloudTaskMap.set(task.id, { task, col }));
-              });
-              
-              const localTaskMap = new Map();
-              ['todo', 'doing', 'done'].forEach(col => {
-                board[col].forEach(task => localTaskMap.set(task.id, { task, col }));
-              });
-              
-              // Merge: Prefer local changes for existing tasks, add cloud tasks, handle deletions
+              // Merge while preserving the user's local ordering and column placement.
               const merged = { todo: [], doing: [], done: [] };
-              
-              // First, add all cloud tasks
-              cloudTaskMap.forEach(({ task, col }, id) => {
-                const localData = localTaskMap.get(id);
-                if (localData) {
-                  // Task exists in both - prefer local version (more recent)
-                  merged[localData.col].push({ ...localData.task });
-                } else {
-                  // Task only in cloud - add it
+              const seenIds = new Set();
+
+              // 1) Start with the local board so any reordering the user did offline wins.
+              ['todo', 'doing', 'done'].forEach(col => {
+                board[col].forEach(task => {
                   merged[col].push({ ...task });
-                }
+                  seenIds.add(task.id);
+                });
               });
-              
-              // Then, add local tasks that don't exist in cloud (new tasks)
-              localTaskMap.forEach(({ task, col }, id) => {
-                if (!cloudTaskMap.has(id)) {
-                  console.log(`Adding new local task: ${task.headline}`);
-                  merged[col].push({ ...task });
-                }
+
+              // 2) Append cloud-only tasks in their original order so nothing goes missing.
+              ['todo', 'doing', 'done'].forEach(col => {
+                cloudData.board[col].forEach(task => {
+                  if (!seenIds.has(task.id)) {
+                    merged[col].push({ ...task });
+                    seenIds.add(task.id);
+                  }
+                });
               });
-              
+
               isApplyingRemoteUpdate = true;
               board = merged;
               // Keep local title if modified, otherwise use cloud title
