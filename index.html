@@ -158,6 +158,7 @@
       padding: 10px 12px; margin: 8px 4px; box-shadow: var(--shadow);
       display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start;
     }
+    .card.drop-target { border-color: var(--accent-2); background: rgba(59,130,246,0.12); }
     .card[draggable="true"] { cursor: grab; }
     .headline { font-weight: 700; font-size: 1.05rem; margin-bottom: 4px; }
     .text { white-space: pre-wrap; word-break: break-word; color: var(--muted); font-size: .95rem; }
@@ -833,6 +834,7 @@
 
     /** @type {Board} */
     let board = load();
+    let draggedTaskId = null;
 
     function uid(){ return Math.random().toString(36).slice(2,9); }
 
@@ -938,7 +940,14 @@
       el.dataset.id = task.id;
 
       el.addEventListener('dragstart', e => {
+        draggedTaskId = task.id;
         e.dataTransfer.setData('text/plain', JSON.stringify({ id: task.id }));
+      });
+
+      el.addEventListener('dragend', () => {
+        draggedTaskId = null;
+        document.querySelectorAll('.card.drop-target').forEach(card => card.classList.remove('drop-target'));
+        document.querySelectorAll('.dropzone.dragover').forEach(zone => zone.classList.remove('dragover'));
       });
 
       const headline = document.createElement('div');
@@ -1090,6 +1099,34 @@
 
       el.appendChild(left); el.appendChild(actions);
 
+      el.addEventListener('dragenter', (e) => {
+        if (draggedTaskId && draggedTaskId !== task.id) {
+          e.preventDefault();
+          el.classList.add('drop-target');
+        }
+      });
+
+      el.addEventListener('dragover', (e) => {
+        if (draggedTaskId && draggedTaskId !== task.id) {
+          e.preventDefault();
+        }
+      });
+
+      el.addEventListener('dragleave', (e) => {
+        if (!e.relatedTarget || !el.contains(e.relatedTarget)) {
+          el.classList.remove('drop-target');
+        }
+      });
+
+      el.addEventListener('drop', (e) => {
+        e.preventDefault();
+        el.classList.remove('drop-target');
+        const id = extractDraggedId(e);
+        if (!id || id === task.id) return;
+        const targetIndex = board[column].findIndex(t => t.id === task.id);
+        moveTask(id, column, targetIndex);
+      });
+
       return el;
     }
 
@@ -1228,14 +1265,42 @@
       }, 5000);
     }
 
-    function moveTask(id, toCol){
+    function moveTask(id, toCol, position = null){
       if(!['todo','doing','done'].includes(toCol)) return;
-      let moving = null, from = null;
+      let moving = null, from = null, fromIndex = -1;
       for(const col of ['todo','doing','done']){
         const i = board[col].findIndex(t => t.id===id);
-        if(i>-1){ moving = board[col].splice(i,1)[0]; from = col; break; }
+        if(i>-1){ moving = board[col].splice(i,1)[0]; from = col; fromIndex = i; break; }
       }
-      if(moving){ board[toCol].push(moving); save(board); render(); }
+      if(moving){
+        const targetColumn = board[toCol];
+        if(position === null || position === undefined || position > targetColumn.length){
+          targetColumn.push(moving);
+        } else {
+          let insertIndex = Math.max(0, position);
+          if(from === toCol && fromIndex < insertIndex){
+            insertIndex--;
+          }
+          insertIndex = Math.min(insertIndex, targetColumn.length);
+          targetColumn.splice(insertIndex, 0, moving);
+        }
+        save(board); render();
+      }
+    }
+
+    function extractDraggedId(e) {
+      if (e && e.dataTransfer) {
+        const raw = e.dataTransfer.getData('text/plain');
+        if (raw) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (parsed && parsed.id) {
+              return parsed.id;
+            }
+          } catch {}
+        }
+      }
+      return draggedTaskId;
     }
 
     // DnD
@@ -1244,8 +1309,9 @@
       zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
       zone.addEventListener('drop', e => {
         e.preventDefault(); zone.classList.remove('dragover');
-        try { const { id } = JSON.parse(e.dataTransfer.getData('text/plain')); moveTask(id, zone.dataset.col); }
-        catch{}
+        document.querySelectorAll('.card.drop-target').forEach(card => card.classList.remove('drop-target'));
+        const id = extractDraggedId(e);
+        if(id) moveTask(id, zone.dataset.col);
       });
     });
 
